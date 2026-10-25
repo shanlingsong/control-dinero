@@ -14,10 +14,21 @@
 <body>
   <header>
     <h1>Mi Dinero</h1>
-    <input type="month" id="mes" aria-label="Mes a mostrar">
+    <div class="header-derecha">
+      <input type="month" id="mes" aria-label="Mes a mostrar">
+      <button type="button" id="abrir-ajustes" class="icono" aria-label="Ajustes de la nube">⚙</button>
+    </div>
   </header>
 
   <main>
+    <p id="estado" class="estado"></p>
+
+    <!-- Escribir un movimiento en lenguaje normal; la IA lo convierte -->
+    <form id="form-ia" class="ia">
+      <input type="text" name="texto" placeholder="✨ Escribe: gasté 150 en tacos ayer" autocomplete="off" required>
+      <button type="submit">Listo</button>
+    </form>
+
     <!-- Resumen del mes elegido -->
     <section class="resumen">
       <div class="tarjeta ingreso"><span>Ingresos</span><strong id="total-ingresos">$0.00</strong></div>
@@ -37,7 +48,7 @@
 
     <section class="respaldo">
       <h2>Respaldo</h2>
-      <p>Tus datos se guardan solo en este teléfono. Descarga un respaldo de vez en cuando.</p>
+      <p>Un archivo con todos tus movimientos. Al restaurarlo se agregan los que falten.</p>
       <div class="acciones">
         <button type="button" id="exportar">Descargar respaldo</button>
         <label class="boton secundario">Restaurar respaldo
@@ -75,6 +86,26 @@
       </div>
     </form>
   </dialog>
+
+  <!-- Conexión con la nube (Google Sheets) -->
+  <dialog id="dialogo-ajustes">
+    <form id="form-ajustes">
+      <h2>Guardar en la nube</h2>
+      <p class="ayuda">Pega la dirección de tu servidor de Google y la clave que inventaste. Los pasos están en <code>nube/INSTRUCCIONES.md</code>.</p>
+      <label>Dirección del servidor
+        <input type="url" name="url" placeholder="https://script.google.com/macros/s/.../exec">
+      </label>
+      <label>Clave
+        <input type="password" name="clave" autocomplete="off">
+      </label>
+      <div class="acciones">
+        <button type="button" id="cancelar-ajustes" class="secundario">Cancelar</button>
+        <button type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="aviso" class="aviso" role="status" hidden></div>
 
   <script src="app.js"></script>
 </body>

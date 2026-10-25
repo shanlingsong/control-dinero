@@ -47,7 +47,7 @@ header {
   color: #fff;
 }
 
-h1 { margin: 0; font-size: 1.25rem; }
+h1 { margin: 0; font-size: 1.25rem; white-space: nowrap; }
 h2 { margin: 0 0 8px; font-size: 1rem; color: var(--suave); font-weight: 600; }
 
 header input {
@@ -55,7 +55,49 @@ header input {
   border: 0;
   border-radius: 8px;
   padding: 6px 8px;
+  min-width: 0;
+  max-width: 170px;
+  font-size: 0.9rem;
 }
+.header-derecha { display: flex; align-items: center; gap: 8px; }
+.icono {
+  background: rgb(255 255 255 / 0.15);
+  padding: 6px 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.estado { margin: 0; font-size: 0.85rem; color: var(--suave); }
+.estado.problema { color: var(--gasto); }
+
+/* Escribir con IA */
+.ia { display: flex; gap: 8px; }
+.ia input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--texto);
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.ia button:disabled { opacity: 0.6; }
+
+/* Aviso flotante */
+.aviso {
+  position: fixed;
+  left: 16px;
+  right: 96px;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  max-width: 420px;
+  background: var(--texto);
+  color: var(--fondo);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+.aviso[hidden] { display: none; }
 
 main {
   max-width: 560px;
@@ -117,6 +159,12 @@ ul { list-style: none; margin: 0; padding: 0; }
   font-size: 1.3rem;
   padding: 0 4px;
 }
+.borrar.confirmar {
+  background: var(--gasto);
+  color: #fff;
+  font-size: 0.8rem;
+  padding: 6px 8px;
+}
 li.vacio { color: var(--suave); padding: 12px; }
 
 /* Botones */
@@ -173,6 +221,7 @@ dialog input, dialog select {
   padding: 10px;
 }
 dialog .acciones { justify-content: flex-end; }
+dialog .ayuda { margin: 0; font-size: 0.85rem; color: var(--suave); }
 
 .tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tipo label { display: block; }
