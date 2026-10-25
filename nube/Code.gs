@@ -25,7 +25,8 @@ function doPost(e) {
   try {
     switch (peticion.accion) {
       case 'listar':
-        return responder({ movimientos: listar() });
+        // "ia" le dice a la app si debe mostrar la caja para escribir con IA
+        return responder({ movimientos: listar(), ia: Boolean(props.getProperty('ANTHROPIC_API_KEY')) });
       case 'agregar':
         conCandado(() => agregar(peticion.movimiento));
         return responder({ ok: true });

@@ -83,6 +83,7 @@ header input {
   padding: 10px 12px;
 }
 .ia button:disabled { opacity: 0.6; }
+.ia[hidden] { display: none; }
 
 /* Aviso flotante */
 .aviso {

@@ -34,6 +34,7 @@ Cuando tengan la llave (empieza con `sk-ant-`):
 1. En Apps Script → **⚙ Configuración del proyecto → Propiedades del script**, agrega:
    - Propiedad: `ANTHROPIC_API_KEY` · Valor: la llave.
 2. Listo. No hay que volver a implementar: las propiedades se leen en cada petición.
+3. Cierra y vuelve a abrir la app: aparecerá la caja **✨ Escribe: gasté 150 en tacos**. Mientras el servidor no tenga la llave, esa caja está oculta.
 
 **La llave nunca va en la app ni en GitHub**: vive solo en tu servidor de Google, así nadie puede verla ni gastar tu saldo.
 

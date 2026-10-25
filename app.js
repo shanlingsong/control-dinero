@@ -10,6 +10,7 @@ const CATEGORIAS = {
 const CLAVE = 'mi-dinero:movimientos';
 const CLAVE_NUBE = 'mi-dinero:nube';
 const CLAVE_PENDIENTES = 'mi-dinero:pendientes';
+const CLAVE_IA = 'mi-dinero:ia';
 
 const $ = (selector) => document.querySelector(selector);
 const dinero = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
@@ -71,9 +72,11 @@ async function sincronizar() {
       escribir(CLAVE_PENDIENTES, pendientes);
     }
     // 2. Descarga la lista completa: la nube es la fuente de verdad.
-    const { movimientos: deLaNube } = await llamarNube({ accion: 'listar' });
+    const { movimientos: deLaNube, ia } = await llamarNube({ accion: 'listar' });
     movimientos = deLaNube;
     escribir(CLAVE, movimientos);
+    escribir(CLAVE_IA, Boolean(ia));
+    mostrarIA();
     dibujar();
     mostrarEstado('☁ Guardado en la nube');
   } catch (error) {
@@ -283,6 +286,11 @@ $('#mes').addEventListener('change', dibujar);
 
 // ---------- IA: escribir en lenguaje normal ----------
 
+// La caja solo aparece si la nube está conectada y el servidor tiene la llave de la API.
+function mostrarIA() {
+  $('#form-ia').hidden = !(nube && leer(CLAVE_IA, false));
+}
+
 $('#form-ia').addEventListener('submit', async (evento) => {
   evento.preventDefault();
   const form = evento.target;
@@ -332,6 +340,7 @@ $('#form-ajustes').addEventListener('submit', (evento) => {
   if (!nube) {
     pendientes = [];
     escribir(CLAVE_PENDIENTES, pendientes);
+    mostrarIA();
     mostrarEstado('Solo en este teléfono. Toca ⚙ para guardar en la nube.');
     return;
   }
@@ -377,6 +386,7 @@ $('#importar').addEventListener('change', async (evento) => {
 
 $('#mes').value = hoy().slice(0, 7);
 dibujar();
+mostrarIA();
 if (nube) {
   sincronizar();
 } else {
