@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mi Dinero</title>
+  <meta name="theme-color" content="#0f766e">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Mi Dinero</h1>
+    <input type="month" id="mes" aria-label="Mes a mostrar">
+  </header>
+
+  <main>
+    <!-- Resumen del mes elegido -->
+    <section class="resumen">
+      <div class="tarjeta ingreso"><span>Ingresos</span><strong id="total-ingresos">$0.00</strong></div>
+      <div class="tarjeta gasto"><span>Gastos</span><strong id="total-gastos">$0.00</strong></div>
+      <div class="tarjeta balance"><span>Balance del mes</span><strong id="balance">$0.00</strong></div>
+    </section>
+
+    <section>
+      <h2>¿En qué gasto?</h2>
+      <ul id="categorias" class="categorias"></ul>
+    </section>
+
+    <section>
+      <h2>Movimientos</h2>
+      <ul id="lista" class="lista"></ul>
+    </section>
+
+    <section class="respaldo">
+      <h2>Respaldo</h2>
+      <p>Tus datos se guardan solo en este teléfono. Descarga un respaldo de vez en cuando.</p>
+      <div class="acciones">
+        <button type="button" id="exportar">Descargar respaldo</button>
+        <label class="boton secundario">Restaurar respaldo
+          <input type="file" id="importar" accept="application/json,.json" hidden>
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <button type="button" id="abrir-form" class="flotante" aria-label="Agregar movimiento">+</button>
+
+  <!-- Formulario para agregar un movimiento -->
+  <dialog id="dialogo">
+    <form id="form">
+      <h2>Nuevo movimiento</h2>
+      <div class="tipo">
+        <label><input type="radio" name="tipo" value="gasto" checked><span>Gasto</span></label>
+        <label><input type="radio" name="tipo" value="ingreso"><span>Ingreso</span></label>
+      </div>
+      <label>Monto
+        <input type="number" name="monto" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
+      </label>
+      <label>Categoría
+        <select name="categoria" id="categoria"></select>
+      </label>
+      <label>Nota
+        <input type="text" name="nota" placeholder="Opcional, ej. tacos con amigos" maxlength="80">
+      </label>
+      <label>Fecha
+        <input type="date" name="fecha" required>
+      </label>
+      <div class="acciones">
+        <button type="button" id="cancelar" class="secundario">Cancelar</button>
+        <button type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
