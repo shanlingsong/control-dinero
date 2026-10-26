@@ -162,7 +162,11 @@
         <label><input type="radio" name="tipo" value="ahorro"><span>Ahorro</span></label>
       </div>
       <output id="monto-pantalla" class="monto-pantalla">$0</output>
-      <div id="chips-categoria" class="chips desplazable" role="radiogroup" aria-label="Categoría"></div>
+      <div class="carrusel">
+        <button type="button" class="flecha izquierda" data-mover="-1" aria-label="Ver categorías anteriores" hidden><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
+        <div id="chips-categoria" class="chips desplazable" role="radiogroup" aria-label="Categoría"></div>
+        <button type="button" class="flecha derecha" data-mover="1" aria-label="Ver más categorías" hidden><i class="ti ti-chevron-right" aria-hidden="true"></i></button>
+      </div>
       <input type="text" name="nuevaCategoria" id="nueva-categoria" class="campo" placeholder="Escribe tu categoría, ej. Gimnasio" maxlength="30" hidden>
       <div class="fila-campos">
         <input type="text" name="nota" class="campo" placeholder="Nota (opcional)" maxlength="80">

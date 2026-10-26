@@ -187,7 +187,36 @@ main {
 
 .chips { display: flex; gap: 6px; }
 .chips.centrado { justify-content: center; margin-top: 8px; }
-.chips.desplazable { overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.chips.desplazable { overflow-x: auto; padding: 2px 0 4px; scrollbar-width: none; scroll-behavior: smooth; }
+.chips.desplazable::-webkit-scrollbar { display: none; }
+
+/* Flechas para mover los chips cuando no caben */
+.carrusel { position: relative; }
+.flecha {
+  position: absolute;
+  top: 0;
+  bottom: 4px;
+  z-index: 1;
+  width: 44px;
+  border: none;
+  display: flex;
+  align-items: center;
+  font-size: 1.1rem;
+  color: var(--texto);
+  padding: 0;
+}
+.flecha .ti {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--tarjeta-2);
+  border: 1px solid var(--linea);
+}
+.flecha.izquierda { left: -2px; justify-content: flex-start; background: linear-gradient(to right, var(--tarjeta) 45%, transparent); }
+.flecha.derecha { right: -2px; justify-content: flex-end; background: linear-gradient(to left, var(--tarjeta) 45%, transparent); }
+.flecha[hidden] { display: none; }
 .chip {
   border: 1px solid var(--linea);
   background: transparent;
@@ -209,18 +238,24 @@ main {
 .deslizable {
   position: relative;
   border-radius: 16px;
-  background: var(--negativo);
-  overflow: hidden;
   transition: height .25s, margin .25s, opacity .25s;
 }
-.deslizable > .ti-trash {
+/* El fondo rojo con el bote de basura solo se ve mientras deslizas */
+.fondo-borrar {
   position: absolute;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
+  inset: 1px;
+  border-radius: 15px;
+  background: var(--negativo);
   color: #fff;
   font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 18px;
+  opacity: 0;
+  transition: opacity .15s;
 }
+.deslizable.arrastrando .fondo-borrar { opacity: 1; }
 .fila {
   position: relative;
   z-index: 1;
@@ -496,7 +531,7 @@ main {
 @keyframes subir { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes bajar { to { transform: translateY(100%); } }
 @keyframes oscurecer { from { background: rgb(0 0 0 / 0); } }
-.hoja form { display: grid; gap: 12px; padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); }
+.hoja form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); }
 .hoja h2 { margin: 0; font-size: 1.15rem; }
 .hoja h2.separado { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--linea); }
 .agarradera { width: 40px; height: 5px; border-radius: 3px; background: var(--linea); margin: 0 auto 4px; }

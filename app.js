@@ -646,7 +646,7 @@ function dibujarCategorias(delMes, totalGastos) {
 function filaDeslizable(clase, alBorrar) {
   const li = document.createElement('li');
   li.className = 'deslizable ' + clase;
-  li.innerHTML = '<i class="ti ti-trash" aria-hidden="true"></i>';
+  li.innerHTML = '<div class="fondo-borrar"><i class="ti ti-trash" aria-hidden="true"></i></div>';
   const fila = document.createElement('div');
   fila.className = 'fila';
   li.append(fila);
@@ -669,7 +669,10 @@ function filaDeslizable(clase, alBorrar) {
     const dy = e.clientY - inicioY;
     if (horizontal === null && Math.abs(dx) + Math.abs(dy) > 8) {
       horizontal = Math.abs(dx) > Math.abs(dy);
-      if (horizontal) fila.setPointerCapture(e.pointerId);
+      if (horizontal) {
+        fila.setPointerCapture(e.pointerId);
+        li.classList.add('arrastrando');
+      }
     }
     if (!horizontal) return;
     movido = Math.min(0, dx);
@@ -690,6 +693,7 @@ function filaDeslizable(clase, alBorrar) {
       }, 180);
     } else {
       fila.style.transform = '';
+      setTimeout(() => li.classList.remove('arrastrando'), 250);
     }
   };
   fila.addEventListener('pointerup', soltar);
@@ -1019,6 +1023,34 @@ function pintarCategorias() {
   const caja = $('#nueva-categoria');
   caja.hidden = formulario.categoria !== NUEVA_CATEGORIA;
   if (caja.hidden) caja.value = '';
+  actualizarFlechas();
+}
+
+// Las flechas solo aparecen si hay chips escondidos de ese lado.
+function actualizarFlechas() {
+  const chips = $('#chips-categoria');
+  requestAnimationFrame(() => {
+    $('.flecha.izquierda').hidden = chips.scrollLeft <= 2;
+    $('.flecha.derecha').hidden = chips.scrollLeft + chips.clientWidth >= chips.scrollWidth - 2;
+  });
+}
+
+$('#chips-categoria').addEventListener('scroll', actualizarFlechas);
+// Con la rueda del mouse también se mueven hacia los lados.
+$('#chips-categoria').addEventListener(
+  'wheel',
+  (e) => {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    e.preventDefault();
+    e.currentTarget.scrollLeft += e.deltaY;
+  },
+  { passive: false }
+);
+for (const flecha of document.querySelectorAll('[data-mover]')) {
+  flecha.addEventListener('click', () => {
+    const chips = $('#chips-categoria');
+    chips.scrollBy({ left: Number(flecha.dataset.mover) * chips.clientWidth * 0.7 });
+  });
 }
 
 // Abre el formulario; si viene algo prellenado (de la IA o de "Aportar"), lo deja listo para revisar.
@@ -1034,8 +1066,9 @@ function abrirFormulario(prellenado = {}) {
     formulario.categoria = 'Otros';
   }
   pintarMonto();
-  pintarCategorias();
+  $('#chips-categoria').scrollLeft = 0;
   abrirHoja($('#hoja-movimiento'));
+  pintarCategorias(); // después de abrir, para que las flechas midan bien
 }
 
 for (const radio of $('#form').querySelectorAll('input[name="tipo"]')) {
