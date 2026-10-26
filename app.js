@@ -8,6 +8,8 @@ const CATEGORIAS = {
 };
 // "Saldo inicial" es el dinero que ya tenías al empezar: cuenta para tu total, pero no como ingreso del mes.
 const SALDO_INICIAL = 'Saldo inicial';
+// Valor especial del menú de categorías para escribir una propia.
+const NUEVA_CATEGORIA = '__nueva__';
 
 // Nombres con los que se guardan los datos en el navegador (localStorage).
 const CLAVES = {
@@ -522,6 +524,16 @@ function avisar(texto) {
 
 // ---------- Formulario de movimientos ----------
 
+// Las categorías fijas más las que tú has escrito (se sacan de tus movimientos, así llegan a todos tus dispositivos).
+function categoriasDe(tipo) {
+  const fijas = CATEGORIAS[tipo].filter((c) => c !== 'Otros');
+  const propias = new Set();
+  for (const m of datos.movimientos) {
+    if (m.tipo === tipo && !CATEGORIAS[tipo].includes(m.categoria)) propias.add(m.categoria);
+  }
+  return [...fijas, ...[...propias].sort(), 'Otros'];
+}
+
 // Para ahorros, la "categoría" es la meta a la que va el dinero.
 function llenarCategorias() {
   const tipo = $('#form').tipo.value;
@@ -531,9 +543,24 @@ function llenarCategorias() {
     select.replaceChildren(...datos.metas.map((meta) => new Option(meta.nombre, meta.id)));
     if (datos.metas.length === 0) select.append(new Option('Primero crea una meta', ''));
   } else {
-    select.replaceChildren(...CATEGORIAS[tipo].map((c) => new Option(c, c)));
+    select.replaceChildren(...categoriasDe(tipo).map((c) => new Option(c, c)), new Option('✏️ Escribir mi propia categoría…', NUEVA_CATEGORIA));
   }
+  mostrarNuevaCategoria();
 }
+
+// Muestra la caja de texto solo cuando eliges "Escribir mi propia categoría".
+function mostrarNuevaCategoria() {
+  const caja = $('#nueva-categoria');
+  const escribir = $('#categoria').value === NUEVA_CATEGORIA;
+  caja.hidden = !escribir;
+  caja.required = escribir;
+  if (!escribir) caja.value = '';
+}
+
+$('#categoria').addEventListener('change', () => {
+  mostrarNuevaCategoria();
+  if (!$('#nueva-categoria').hidden) $('#nueva-categoria').focus();
+});
 
 // Abre el formulario; si viene algo prellenado (de la IA o de "Aportar"), lo deja listo para revisar.
 function abrirFormulario(prellenado = {}) {
@@ -545,9 +572,10 @@ function abrirFormulario(prellenado = {}) {
   if (prellenado.monto) form.monto.value = prellenado.monto;
   if (prellenado.nota) form.nota.value = prellenado.nota;
   if (prellenado.meta) form.categoria.value = prellenado.meta;
-  if (prellenado.categoria) {
-    form.categoria.value = CATEGORIAS[form.tipo.value]?.includes(prellenado.categoria) ? prellenado.categoria : 'Otros';
+  if (prellenado.categoria && form.tipo.value !== 'ahorro') {
+    form.categoria.value = categoriasDe(form.tipo.value).includes(prellenado.categoria) ? prellenado.categoria : 'Otros';
   }
+  mostrarNuevaCategoria();
   $('#dialogo').showModal();
   if (!prellenado.monto) form.monto.focus();
 }
@@ -565,11 +593,22 @@ $('#form').addEventListener('submit', (evento) => {
     avisar('Primero crea una meta en "Mis metas"');
     return;
   }
+  // Una categoría escrita a mano empieza con mayúscula: "gimnasio" → "Gimnasio"
+  const escrita = form.nuevaCategoria.value.trim();
+  if (form.categoria.value === NUEVA_CATEGORIA && !escrita) {
+    avisar('Escribe el nombre de tu categoría');
+    return;
+  }
+  const categoria = meta
+    ? meta.nombre
+    : form.categoria.value === NUEVA_CATEGORIA
+      ? escrita[0].toUpperCase() + escrita.slice(1)
+      : form.categoria.value;
   agregar('movimientos', {
     id: crypto.randomUUID(),
     tipo,
     monto: Math.round(Number(form.monto.value) * 100) / 100,
-    categoria: meta ? meta.nombre : form.categoria.value,
+    categoria,
     nota: form.nota.value.trim(),
     fecha: form.fecha.value,
     creado: Date.now(),
@@ -692,7 +731,7 @@ $('#form-ia').addEventListener('submit', async (evento) => {
     const { movimiento } = await llamarNube({
       accion: 'interpretar',
       texto: form.texto.value,
-      categorias: CATEGORIAS,
+      categorias: { gasto: categoriasDe('gasto'), ingreso: categoriasDe('ingreso') },
       hoy: hoy(),
     });
     form.reset();
