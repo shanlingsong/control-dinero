@@ -1508,15 +1508,26 @@ $('#importar').addEventListener('change', async (evento) => {
 // ---------- Pantalla de carga ----------
 
 const inicioCarga = performance.now();
-const progresoCarga = (porcentaje) => ($('#carga-progreso').style.width = porcentaje + '%');
+// La barrita aparece con una animación; hasta que se ve, solo se recuerda cuánto avanzar,
+// así siempre arranca desde 0 en vez de aparecer ya a la mitad.
+let avanceCarga = 0;
+let barraVisible = false;
+function progresoCarga(porcentaje) {
+  avanceCarga = Math.max(avanceCarga, porcentaje);
+  if (barraVisible) $('#carga-progreso').style.width = avanceCarga + '%';
+}
+setTimeout(() => {
+  barraVisible = true;
+  progresoCarga(avanceCarga);
+}, 800);
 
-// Se queda al menos 1.6 s para que se vea la animación, y se quita al terminar de cargar.
+// Se queda al menos 1.9 s para que se vea la animación, y se quita al terminar de cargar.
 function terminarCarga() {
   const carga = $('#carga');
   if (!carga || carga.dataset.terminando) return;
   carga.dataset.terminando = '1';
   progresoCarga(100);
-  const espera = Math.max(0, 1600 - (performance.now() - inicioCarga));
+  const espera = Math.max(0, 1900 - (performance.now() - inicioCarga));
   setTimeout(() => {
     carga.classList.add('oculta');
     mostrarVista(leer('mi-dinero:vista', 'dinero')); // las animaciones de la sección arrancan al quitarse la carga
@@ -1526,7 +1537,7 @@ function terminarCarga() {
 
 // ---------- Arranque ----------
 
-requestAnimationFrame(() => progresoCarga(25));
+progresoCarga(25);
 $('#mes').value = hoy().slice(0, 7);
 dibujar();
 mostrarIA();
