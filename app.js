@@ -1,4 +1,4 @@
-// Mi Dinero: registra ingresos, gastos y ahorros, lleva tus metas y tu racha,
+// Mi Dinero: registra ingresos, gastos y ahorros, lleva tus metas, tu racha y tus pagos pendientes,
 // y lo guarda todo en el teléfono y en la nube (Google Sheets).
 
 // Categorías disponibles para cada tipo de movimiento. Puedes agregar o quitar las que quieras.
@@ -6,10 +6,35 @@ const CATEGORIAS = {
   gasto: ['Comida', 'Transporte', 'Casa', 'Servicios', 'Salud', 'Diversión', 'Ropa', 'Otros'],
   ingreso: ['Sueldo', 'Ventas', 'Negocio', 'Regalo', 'Saldo inicial', 'Otros'],
 };
+// Ícono de cada categoría (https://tabler.io/icons). Las categorías propias usan una etiqueta.
+const ICONOS = {
+  Comida: 'ti-tools-kitchen-2',
+  Transporte: 'ti-bus',
+  Casa: 'ti-home',
+  Servicios: 'ti-bulb',
+  Salud: 'ti-heart-rate-monitor',
+  'Diversión': 'ti-device-gamepad-2',
+  Ropa: 'ti-shirt',
+  Otros: 'ti-dots',
+  Sueldo: 'ti-cash',
+  Ventas: 'ti-briefcase',
+  Negocio: 'ti-building-store',
+  Regalo: 'ti-gift',
+  'Saldo inicial': 'ti-wallet',
+};
 // "Saldo inicial" es el dinero que ya tenías al empezar: cuenta para tu total, pero no como ingreso del mes.
 const SALDO_INICIAL = 'Saldo inicial';
-// Valor especial del menú de categorías para escribir una propia.
+// Valor especial de los chips de categoría para escribir una propia.
 const NUEVA_CATEGORIA = '__nueva__';
+
+// Etapas de la flama según los días de racha.
+const ETAPAS = [
+  { desde: 0, nombre: 'Apagada', color: '#8A93A6', tamano: 56 },
+  { desde: 1, nombre: 'Chispa', color: '#FFB347', tamano: 62 },
+  { desde: 7, nombre: 'Fuego', color: '#FF8A3D', tamano: 72 },
+  { desde: 30, nombre: 'Llamarada', color: '#FF5A4E', tamano: 84 },
+  { desde: 100, nombre: 'Leyenda', color: '#B18CFF', tamano: 96 },
+];
 
 // Nombres con los que se guardan los datos en el navegador (localStorage).
 const CLAVES = {
@@ -21,9 +46,11 @@ const CLAVES = {
 const CLAVE_NUBE = 'mi-dinero:nube';
 const CLAVE_PENDIENTES = 'mi-dinero:pendientes';
 const CLAVE_IA = 'mi-dinero:ia';
+const CLAVE_PERFIL = 'mi-dinero:perfil';
 
 const $ = (selector) => document.querySelector(selector);
 const dinero = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+const corto = (n) => '$' + Math.round(n).toLocaleString('es-MX');
 
 const datos = {
   movimientos: leer(CLAVES.movimientos, []),
@@ -33,6 +60,7 @@ const datos = {
 };
 let nube = leer(CLAVE_NUBE, null); // { url, clave } o null si no está conectada
 let pendientes = leer(CLAVE_PENDIENTES, []); // cambios que aún no se suben a la nube
+let perfil = leer(CLAVE_PERFIL, { nombre: '', foto: '' });
 
 // ---------- Guardar y cargar en el teléfono ----------
 
@@ -45,7 +73,11 @@ function leer(clave, porDefecto) {
 }
 
 function escribir(clave, valor) {
-  localStorage.setItem(clave, JSON.stringify(valor));
+  try {
+    localStorage.setItem(clave, JSON.stringify(valor));
+  } catch {
+    avisar('No se pudo guardar en este teléfono (¿memoria llena?)');
+  }
 }
 
 function guardarColeccion(nombre) {
@@ -74,9 +106,54 @@ function aFecha(texto) {
   return new Date(a, m - 1, d);
 }
 
-// "2026-10-25" → "sáb, 25 oct"
+// "2026-10-25" → "dom, 25 oct"
 function fechaBonita(fecha) {
   return aFecha(fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+// Cuántos días faltan para una fecha (negativo si ya pasó).
+function diasPara(fecha) {
+  return Math.round((aFecha(fecha) - aFecha(hoy())) / 86400000);
+}
+
+function cuandoVence(fecha) {
+  const dias = diasPara(fecha);
+  if (dias < -1) return `Venció hace ${-dias} días`;
+  if (dias === -1) return 'Venció ayer';
+  if (dias === 0) return 'Es hoy';
+  if (dias === 1) return 'Mañana';
+  if (dias < 7) return `En ${dias} días`;
+  return fechaBonita(fecha);
+}
+
+const mayuscula = (texto) => (texto ? texto[0].toUpperCase() + texto.slice(1) : texto);
+
+// ---------- Animaciones pequeñas ----------
+
+// Hace que un número "cuente" desde el valor que tenía hasta el nuevo.
+function contar(elemento, valor, duracion = 900) {
+  const desde = Number(elemento.dataset.valor || 0);
+  elemento.dataset.valor = valor;
+  cancelAnimationFrame(elemento._animacion);
+  const inicio = performance.now();
+  const paso = (ahora) => {
+    const t = Math.min(1, (ahora - inicio) / duracion);
+    const suave = 1 - Math.pow(1 - t, 3);
+    elemento.textContent = dinero.format(desde + (valor - desde) * suave);
+    if (t < 1) elemento._animacion = requestAnimationFrame(paso);
+  };
+  elemento._animacion = requestAnimationFrame(paso);
+}
+
+// Llena una barra desde donde estaba hasta el nuevo porcentaje.
+function llenar(barra, porcentaje) {
+  requestAnimationFrame(() => requestAnimationFrame(() => (barra.style.width = porcentaje + '%')));
+}
+
+function vibrar() {
+  try {
+    navigator.vibrate?.(12);
+  } catch {}
 }
 
 // ---------- Nube ----------
@@ -104,7 +181,7 @@ let sincronizando = false;
 async function sincronizar() {
   if (!nube || sincronizando) return;
   sincronizando = true;
-  mostrarEstado('Sincronizando…');
+  mostrarEstado('ti-refresh', 'Sincronizando…');
   try {
     // 1. Sube los cambios pendientes, en orden.
     while (pendientes.length > 0) {
@@ -123,9 +200,9 @@ async function sincronizar() {
     escribir(CLAVE_IA, Boolean(respuesta.ia));
     mostrarIA();
     dibujar();
-    mostrarEstado('☁ Guardado en la nube');
+    mostrarEstado('ti-cloud-check', 'Guardado en la nube');
   } catch (error) {
-    mostrarEstado(explicarError(error), true);
+    mostrarEstado('ti-cloud-off', explicarError(error), true);
   } finally {
     sincronizando = false;
   }
@@ -135,12 +212,13 @@ async function sincronizar() {
 function explicarError(error) {
   if (!(error instanceof TypeError || error instanceof SyntaxError)) return 'Error de la nube: ' + error.message;
   if (!navigator.onLine) return 'Sin internet: tus cambios se subirán cuando vuelva la conexión';
-  return 'No responde el servidor. Revisa en ⚙ que la dirección esté completa y termine en /exec';
+  return 'No responde el servidor. Revisa en ajustes que la dirección termine en /exec';
 }
 
-function mostrarEstado(texto, problema = false) {
+function mostrarEstado(icono, texto, problema = false) {
   const estado = $('#estado');
-  estado.textContent = texto;
+  estado.innerHTML = `<i class="ti ${icono}" aria-hidden="true"></i>`;
+  estado.append(texto);
   estado.classList.toggle('problema', problema);
 }
 
@@ -162,6 +240,12 @@ function borrar(nombre, id) {
   sincronizar();
 }
 
+// Borra y ofrece "Deshacer" por si fue sin querer.
+function borrarConDeshacer(nombre, objeto, texto) {
+  borrar(nombre, objeto.id);
+  avisar(texto, 'Deshacer', () => agregar(nombre, objeto));
+}
+
 // ---------- Cálculos ----------
 
 const sumar = (lista) => lista.reduce((total, m) => total + m.monto, 0);
@@ -173,8 +257,15 @@ function efecto(m) {
   return 0;
 }
 
+const esIngresoReal = (m) => m.tipo === 'ingreso' && m.categoria !== SALDO_INICIAL;
+
 function ahorradoEn(meta) {
   return sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro' && m.meta === meta.id));
+}
+
+function iconoDe(m) {
+  if (m.tipo === 'ahorro') return 'ti-pig-money';
+  return ICONOS[m.categoria] || 'ti-tag';
 }
 
 // Un día cuenta para la racha si registraste algo ese día (movimiento, meta o pago) o marcaste "hoy no tuve movimientos".
@@ -184,21 +275,6 @@ function diasActivos() {
     if (x.creado) activos.add(fechaLocal(new Date(x.creado)));
   }
   return activos;
-}
-
-// Cuántos días faltan para una fecha (negativo si ya pasó).
-function diasPara(fecha) {
-  return Math.round((aFecha(fecha) - aFecha(hoy())) / 86400000);
-}
-
-function cuandoVence(fecha) {
-  const dias = diasPara(fecha);
-  if (dias < -1) return `Venció hace ${-dias} días`;
-  if (dias === -1) return 'Venció ayer';
-  if (dias === 0) return 'Es hoy';
-  if (dias === 1) return 'Mañana';
-  if (dias < 7) return `En ${dias} días`;
-  return fechaBonita(fecha);
 }
 
 function calcularRacha() {
@@ -229,59 +305,528 @@ function calcularRacha() {
   return { actual, mejor, registradoHoy, semana, activos };
 }
 
+const etapaDe = (dias) => [...ETAPAS].reverse().find((e) => dias >= e.desde);
+
+// Compara lo gastado este mes con lo gastado el mes pasado hasta el mismo día.
+function compararConMesPasado() {
+  const hoyTexto = hoy();
+  const dia = Number(hoyTexto.slice(8));
+  const [a, m] = hoyTexto.split('-').map(Number);
+  const inicioPasado = fechaLocal(new Date(a, m - 2, 1));
+  const finPasado = fechaLocal(new Date(a, m - 2, Math.min(dia, new Date(a, m - 1, 0).getDate())));
+  const gastos = (desde, hasta) => sumar(datos.movimientos.filter((x) => x.tipo === 'gasto' && x.fecha >= desde && x.fecha <= hasta));
+  const ahora = gastos(hoyTexto.slice(0, 8) + '01', hoyTexto);
+  const antes = gastos(inicioPasado, finPasado);
+  const mesPasado = new Date(a, m - 2, 1).toLocaleDateString('es-MX', { month: 'long' });
+  return { ahora, antes, mesPasado };
+}
+
 // ---------- Dibujar la pantalla ----------
 
 function dibujar() {
-  dibujarRacha();
-  dibujarTotal();
+  dibujarEncabezado();
+  dibujarSaldo();
+  dibujarGrafica(false);
+  dibujarMes();
   dibujarMetas();
+  dibujarRacha();
   dibujarPagos();
+}
 
+function dibujarEncabezado() {
+  $('#saludo').textContent = perfil.nombre ? `Hola, ${perfil.nombre}` : 'Hola';
+  $('#fecha-hoy').textContent = mayuscula(new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }));
+  for (const el of [$('#avatar'), $('#avatar-grande')]) {
+    el.style.backgroundImage = perfil.foto ? `url(${perfil.foto})` : '';
+    el.textContent = perfil.foto ? '' : (perfil.nombre || '?')[0].toUpperCase();
+  }
+}
+
+function dibujarSaldo() {
+  const total = datos.movimientos.reduce((t, m) => t + efecto(m), 0);
+  if (!grafica.tocando) contar($('#saldo'), total);
+  if (!grafica.tocando) dibujarComparacion();
+}
+
+function dibujarComparacion() {
+  const { ahora, antes, mesPasado } = compararConMesPasado();
+  const el = $('#comparacion');
+  el.className = 'comparacion';
+  if (antes === 0) {
+    el.innerHTML = '';
+    if (ahora > 0) el.append(`Llevas ${corto(ahora)} gastados este mes`);
+    return;
+  }
+  const cambio = Math.round(((ahora - antes) / antes) * 100);
+  const menos = cambio <= 0;
+  el.classList.add(menos ? 'bien' : 'mal');
+  el.innerHTML = `<i class="ti ti-trending-${menos ? 'down' : 'up'}" aria-hidden="true"></i>`;
+  el.append(`Gastaste ${Math.abs(cambio)}% ${menos ? 'menos' : 'más'} que en ${mesPasado} a estas alturas`);
+}
+
+// ---------- Gráfica: barras y tendencia ----------
+
+const grafica = { modo: 'barras', que: 'gas', rango: 7, puntos: [], x: [], tocando: false };
+const SVG = 'http://www.w3.org/2000/svg';
+const ANCHO = 300;
+const ALTO = 170;
+const BASE = 148; // donde se apoyan las barras; abajo van las letras de los días
+const LETRAS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+function svg(etiqueta, atributos = {}, estilo = {}) {
+  const el = document.createElementNS(SVG, etiqueta);
+  for (const [k, v] of Object.entries(atributos)) el.setAttribute(k, v);
+  Object.assign(el.style, estilo);
+  return el;
+}
+
+// Ingresos, gastos y saldo al final de cada día (o de cada semana en 3M).
+function datosGrafica() {
+  const dias = grafica.rango === 90 ? 91 : grafica.rango;
+  const hoyTexto = hoy();
+  const desde = sumarDias(hoyTexto, -(dias - 1));
+  const lista = [];
+  for (let i = 0; i < dias; i++) lista.push({ fecha: sumarDias(desde, i), ing: 0, gas: 0, cambio: 0 });
+  const indice = new Map(lista.map((d, i) => [d.fecha, i]));
+
+  let saldo = 0;
+  for (const m of datos.movimientos) {
+    if (m.fecha < desde) {
+      saldo += efecto(m);
+      continue;
+    }
+    const d = lista[indice.get(m.fecha)];
+    if (!d) continue;
+    if (esIngresoReal(m)) d.ing += m.monto;
+    if (m.tipo === 'gasto') d.gas += m.monto;
+    d.cambio += efecto(m);
+  }
+  for (const d of lista) {
+    saldo += d.cambio;
+    d.saldo = saldo;
+  }
+
+  if (grafica.rango < 90) {
+    return lista.map((d, i) => {
+      const fecha = aFecha(d.fecha);
+      const atras = dias - 1 - i;
+      return {
+        ...d,
+        etiqueta: dias === 7 ? LETRAS[fecha.getDay()] : atras % 5 === 0 ? String(fecha.getDate()) : '',
+        titulo: mayuscula(fecha.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' })),
+      };
+    });
+  }
+  // 3 meses: una barra por semana
+  const semanas = [];
+  for (let i = 0; i < lista.length; i += 7) {
+    const grupo = lista.slice(i, i + 7);
+    const inicio = aFecha(grupo[0].fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+    semanas.push({
+      ing: grupo.reduce((t, d) => t + d.ing, 0),
+      gas: grupo.reduce((t, d) => t + d.gas, 0),
+      saldo: grupo[grupo.length - 1].saldo,
+      etiqueta: (i / 7) % 3 === 0 ? inicio : '',
+      titulo: `Semana del ${inicio}`,
+    });
+  }
+  return semanas;
+}
+
+function dibujarGrafica(animar = true) {
+  const lienzo = $('#grafica');
+  const puntos = datosGrafica();
+  grafica.puntos = puntos;
+  lienzo.replaceChildren();
+  $('#grafica-titulo').textContent = { 7: 'Esta semana', 30: 'Este mes', 90: 'Últimos 3 meses' }[grafica.rango];
+  $('#grafica-que').hidden = grafica.modo !== 'barras';
+
+  const n = puntos.length;
+  const ultimo = n - 1;
+  if (grafica.modo === 'barras') {
+    const valores = puntos.map((p) => p[grafica.que]);
+    const maximo = Math.max(...valores, 1);
+    const paso = ANCHO / n;
+    const ancho = paso * (n <= 13 ? 0.62 : 0.66);
+    const radio = Math.min(10, ancho / 2.6);
+    const color = grafica.que === 'gas' ? 'var(--acento-2)' : 'var(--positivo)';
+    const colorHoy = grafica.que === 'gas' ? 'var(--acento)' : 'var(--acento-2)';
+    grafica.x = puntos.map((_, i) => i * paso + paso / 2);
+
+    puntos.forEach((p, i) => {
+      const alto = valores[i] > 0 ? Math.max(5, (valores[i] / maximo) * (BASE - 16)) : 3;
+      const barra = svg('rect', { x: grafica.x[i] - ancho / 2, width: ancho, rx: radio, y: BASE, height: 0, 'data-i': i }, {
+        fill: i === ultimo ? colorHoy : color,
+        opacity: valores[i] > 0 ? 1 : 0.35,
+        transition: animar ? `y .65s var(--rebote) ${i * (500 / n)}ms, height .65s var(--rebote) ${i * (500 / n)}ms, opacity .2s` : 'opacity .2s',
+      });
+      lienzo.append(barra);
+      const fin = () => {
+        barra.setAttribute('y', BASE - alto);
+        barra.setAttribute('height', alto);
+      };
+      animar ? requestAnimationFrame(() => requestAnimationFrame(fin)) : fin();
+      if (p.etiqueta) {
+        const letra = svg('text', { x: grafica.x[i], y: ALTO - 4, 'text-anchor': 'middle', 'font-size': 12 }, { fill: i === ultimo ? 'var(--acento)' : 'var(--claro)', fontWeight: i === ultimo ? 700 : 400 });
+        letra.textContent = p.etiqueta;
+        lienzo.append(letra);
+      }
+    });
+    lienzo.append(svg('text', { id: 'valor-barra', 'text-anchor': 'middle', 'font-size': 11 }, { fill: 'var(--texto)', fontWeight: 600, display: 'none' }));
+  } else {
+    const saldos = puntos.map((p) => p.saldo);
+    const minimo = Math.min(...saldos);
+    const maximo = Math.max(...saldos);
+    grafica.x = puntos.map((_, i) => (n === 1 ? ANCHO / 2 : (i / (n - 1)) * ANCHO));
+    const y = saldos.map((s) => 14 + (1 - (s - minimo) / (maximo - minimo || 1)) * (BASE - 26));
+    puntos.forEach((p, i) => (p.y = y[i]));
+    const trazo = grafica.x.map((x, i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y[i].toFixed(1)}`).join(' ');
+
+    lienzo.append(svg('line', { x1: 0, x2: ANCHO, y1: y[0], y2: y[0], 'stroke-dasharray': '3 4' }, { stroke: 'var(--linea)' }));
+    const area = svg('path', { d: `${trazo} L${ANCHO} ${BASE} L0 ${BASE} Z` }, { fill: 'var(--acento)', fillOpacity: 0.12 });
+    const linea = svg('path', { d: trazo, fill: 'none', 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, { stroke: 'var(--acento)' });
+    lienzo.append(area, linea);
+
+    if (maximo !== minimo) {
+      for (const [i, texto, dy] of [[saldos.indexOf(maximo), 'máx', -8], [saldos.indexOf(minimo), 'mín', 15]]) {
+        lienzo.append(svg('circle', { cx: grafica.x[i], cy: y[i], r: 3 }, { fill: 'var(--acento-2)' }));
+        const t = svg('text', { x: Math.min(ANCHO - 40, Math.max(2, grafica.x[i] - 16)), y: y[i] + dy, 'font-size': 10 }, { fill: 'var(--acento-2)' });
+        t.textContent = `${texto} ${corto(saldos[i])}`;
+        lienzo.append(t);
+      }
+    }
+    puntos.forEach((p, i) => {
+      if (!p.etiqueta) return;
+      const t = svg('text', { x: Math.min(ANCHO - 8, Math.max(8, grafica.x[i])), y: ALTO - 4, 'text-anchor': 'middle', 'font-size': 12 }, { fill: i === ultimo ? 'var(--acento)' : 'var(--claro)' });
+      t.textContent = p.etiqueta;
+      lienzo.append(t);
+    });
+    lienzo.append(
+      svg('line', { id: 'guia', y1: 0, y2: BASE }, { stroke: 'var(--suave)', strokeOpacity: 0.6, display: 'none' }),
+      svg('circle', { id: 'punto-guia', r: 5, 'stroke-width': 2 }, { fill: 'var(--fondo)', stroke: 'var(--acento)', display: 'none' })
+    );
+    if (animar) {
+      const largo = linea.getTotalLength();
+      Object.assign(linea.style, { strokeDasharray: largo, strokeDashoffset: largo });
+      area.style.opacity = 0;
+      linea.getBoundingClientRect();
+      Object.assign(linea.style, { transition: 'stroke-dashoffset 1.2s ease-out', strokeDashoffset: 0 });
+      Object.assign(area.style, { transition: 'opacity .8s ease .5s', opacity: 1 });
+    }
+  }
+}
+
+// Al deslizar el dedo sobre la gráfica se ve el detalle de cada día.
+function recorrerGrafica(evento) {
+  const lienzo = $('#grafica');
+  const caja = lienzo.getBoundingClientRect();
+  const x = ((evento.clientX - caja.left) / caja.width) * ANCHO;
+  let i = 0;
+  grafica.x.forEach((xx, k) => {
+    if (Math.abs(xx - x) < Math.abs(grafica.x[i] - x)) i = k;
+  });
+  const p = grafica.puntos[i];
+  grafica.tocando = true;
+
+  if (grafica.modo === 'barras') {
+    lienzo.querySelectorAll('rect').forEach((r) => (r.style.opacity = Number(r.dataset.i) === i ? 1 : 0.4));
+    const barra = lienzo.querySelector(`rect[data-i="${i}"]`);
+    const valor = lienzo.querySelector('#valor-barra');
+    valor.textContent = corto(p[grafica.que]);
+    valor.setAttribute('x', Math.min(ANCHO - 22, Math.max(22, grafica.x[i])));
+    valor.setAttribute('y', Number(barra.getAttribute('y')) - 7);
+    valor.style.display = '';
+  } else {
+    const guia = lienzo.querySelector('#guia');
+    const punto = lienzo.querySelector('#punto-guia');
+    guia.setAttribute('x1', grafica.x[i]);
+    guia.setAttribute('x2', grafica.x[i]);
+    punto.setAttribute('cx', grafica.x[i]);
+    punto.setAttribute('cy', p.y);
+    guia.style.display = punto.style.display = '';
+  }
+
+  $('#saldo-etiqueta').textContent = p.titulo;
+  cancelAnimationFrame($('#saldo')._animacion);
+  $('#saldo').textContent = dinero.format(p.saldo);
+  const el = $('#comparacion');
+  el.className = 'comparacion';
+  el.innerHTML = `<span class="positivo">+${corto(p.ing)}</span> · <span class="negativo">−${corto(p.gas)}</span>`;
+}
+
+function soltarGrafica() {
+  if (!grafica.tocando) return;
+  grafica.tocando = false;
+  const lienzo = $('#grafica');
+  lienzo.querySelectorAll('rect').forEach((r) => (r.style.opacity = ''));
+  for (const id of ['#valor-barra', '#guia', '#punto-guia']) {
+    const el = lienzo.querySelector(id);
+    if (el) el.style.display = 'none';
+  }
+  dibujarGrafica(false);
+  $('#saldo-etiqueta').textContent = 'Tu dinero';
+  const total = Number($('#saldo').dataset.valor || 0);
+  $('#saldo').textContent = dinero.format(total);
+  dibujarComparacion();
+}
+
+// ---------- Movimientos del mes ----------
+
+function dibujarMes() {
   const mes = $('#mes').value; // "AAAA-MM"
   const delMes = datos.movimientos
     .filter((m) => m.fecha.startsWith(mes))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.creado - a.creado);
 
-  const ingresos = sumar(delMes.filter((m) => m.tipo === 'ingreso' && m.categoria !== SALDO_INICIAL));
+  const ingresos = sumar(delMes.filter(esIngresoReal));
   const gastos = sumar(delMes.filter((m) => m.tipo === 'gasto'));
   const apartado = sumar(delMes.filter((m) => m.tipo === 'ahorro'));
-  const balance = ingresos - gastos;
+  contar($('#total-ingresos'), ingresos, 700);
+  contar($('#total-gastos'), gastos, 700);
+  $('#apartado-mes').textContent = apartado > 0 ? `Apartaste ${dinero.format(apartado)} para tus metas este mes` : '';
+  $('#apartado-mes').hidden = apartado === 0;
 
-  $('#total-ingresos').textContent = dinero.format(ingresos);
-  $('#total-gastos').textContent = dinero.format(gastos);
-  $('#balance').textContent = dinero.format(balance);
-  $('#balance').classList.toggle('negativo', balance < 0);
-  $('#apartado-mes').textContent = apartado > 0 ? `Apartaste ${dinero.format(apartado)} para tus metas` : '';
-
-  dibujarCategorias(delMes, gastos);
   dibujarLista(delMes);
+  dibujarCategorias(delMes, gastos);
 }
+
+let ultimoAgregado = null; // id del movimiento recién guardado, para animarlo al aparecer
+
+function dibujarLista(delMes) {
+  const ul = $('#lista');
+  ul.replaceChildren();
+  $('.pista-deslizar').hidden = delMes.length === 0;
+  if (delMes.length === 0) {
+    ul.append(vacio('Aún no hay movimientos este mes. Toca + para agregar el primero.'));
+    return;
+  }
+  const signos = { gasto: '−', ingreso: '+', ahorro: '' };
+  for (const m of delMes) {
+    const li = filaDeslizable(m.tipo, () => borrarConDeshacer('movimientos', m, `Borrado: ${m.categoria} ${dinero.format(m.monto)}`));
+    const fila = li.querySelector('.fila');
+    if (m.id === ultimoAgregado) fila.classList.add('entrando');
+    fila.append(
+      icono(iconoDe(m)),
+      textoFila(m.tipo === 'ahorro' ? `Ahorro: ${m.categoria}` : m.categoria, [fechaBonita(m.fecha), m.nota].filter(Boolean).join(' · ')),
+      montoFila(signos[m.tipo] + dinero.format(m.monto))
+    );
+    ul.append(li);
+  }
+  ultimoAgregado = null;
+}
+
+function dibujarCategorias(delMes, totalGastos) {
+  const porCategoria = {};
+  for (const m of delMes) {
+    if (m.tipo === 'gasto') porCategoria[m.categoria] = (porCategoria[m.categoria] || 0) + m.monto;
+  }
+  const ordenadas = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
+
+  const ul = $('#categorias');
+  ul.replaceChildren();
+  if (ordenadas.length === 0) {
+    ul.append(vacio('Sin gastos este mes.'));
+    return;
+  }
+  for (const [categoria, monto] of ordenadas) {
+    const porcentaje = Math.round((monto / totalGastos) * 100);
+    const li = document.createElement('li');
+    li.innerHTML = `<i class="ti ${ICONOS[categoria] || 'ti-tag'}" aria-hidden="true"></i>
+      <div class="cat-fila"><span></span><span class="suave">${dinero.format(monto)} · ${porcentaje}%</span></div>
+      <div class="barra"><div></div></div>`;
+    li.querySelector('.cat-fila span').textContent = categoria;
+    ul.append(li);
+    llenar(li.querySelector('.barra > div'), porcentaje);
+  }
+}
+
+// ---------- Piezas de las filas ----------
+
+// Una fila que se borra al deslizarla a la izquierda.
+function filaDeslizable(clase, alBorrar) {
+  const li = document.createElement('li');
+  li.className = 'deslizable ' + clase;
+  li.innerHTML = '<i class="ti ti-trash" aria-hidden="true"></i>';
+  const fila = document.createElement('div');
+  fila.className = 'fila';
+  li.append(fila);
+
+  let inicioX = null;
+  let inicioY = null;
+  let movido = 0;
+  let horizontal = null;
+  fila.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button')) return;
+    inicioX = e.clientX;
+    inicioY = e.clientY;
+    movido = 0;
+    horizontal = null;
+    fila.style.transition = 'none';
+  });
+  fila.addEventListener('pointermove', (e) => {
+    if (inicioX === null) return;
+    const dx = e.clientX - inicioX;
+    const dy = e.clientY - inicioY;
+    if (horizontal === null && Math.abs(dx) + Math.abs(dy) > 8) {
+      horizontal = Math.abs(dx) > Math.abs(dy);
+      if (horizontal) fila.setPointerCapture(e.pointerId);
+    }
+    if (!horizontal) return;
+    movido = Math.min(0, dx);
+    fila.style.transform = `translateX(${movido}px)`;
+  });
+  const soltar = () => {
+    if (inicioX === null) return;
+    inicioX = null;
+    fila.style.transition = 'transform .25s var(--suavecito)';
+    if (movido < -fila.offsetWidth * 0.35) {
+      fila.style.transform = 'translateX(-110%)';
+      vibrar();
+      setTimeout(() => {
+        li.style.height = li.offsetHeight + 'px';
+        li.getBoundingClientRect();
+        Object.assign(li.style, { height: '0px', marginBottom: '-8px', opacity: '0' });
+        setTimeout(alBorrar, 230);
+      }, 180);
+    } else {
+      fila.style.transform = '';
+    }
+  };
+  fila.addEventListener('pointerup', soltar);
+  fila.addEventListener('pointercancel', soltar);
+  return li;
+}
+
+function icono(nombre) {
+  const div = document.createElement('div');
+  div.className = 'icono-cat';
+  div.innerHTML = `<i class="ti ${nombre}" aria-hidden="true"></i>`;
+  return div;
+}
+
+function textoFila(titulo, detalle) {
+  const div = document.createElement('div');
+  div.className = 'fila-texto';
+  const strong = document.createElement('strong');
+  strong.textContent = titulo;
+  const small = document.createElement('small');
+  if (detalle instanceof Node) small.append(detalle);
+  else small.textContent = detalle;
+  div.append(strong, small);
+  return div;
+}
+
+function montoFila(texto) {
+  const span = document.createElement('span');
+  span.className = 'monto';
+  span.textContent = texto;
+  return span;
+}
+
+function vacio(texto) {
+  const li = document.createElement('li');
+  li.className = 'vacio';
+  li.textContent = texto;
+  return li;
+}
+
+// ---------- Metas ----------
+
+function dibujarMetas() {
+  const total = datos.movimientos.reduce((t, m) => t + efecto(m), 0);
+  const enMetas = sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro'));
+  contar($('#total-disponible'), total - enMetas, 700);
+  contar($('#total-metas'), enMetas, 700);
+  $('#pista-saldo').hidden = datos.movimientos.some((m) => m.categoria === SALDO_INICIAL);
+
+  const ul = $('#metas');
+  ul.replaceChildren();
+  if (datos.metas.length === 0) {
+    ul.append(vacio('Crea una meta para empezar a ahorrar con un objetivo.'));
+    return;
+  }
+  for (const meta of datos.metas) {
+    const ahorrado = ahorradoEn(meta);
+    const avance = Math.min(100, Math.round((ahorrado / meta.objetivo) * 100));
+    const cumplida = ahorrado >= meta.objetivo;
+
+    const li = filaDeslizable('meta-fila', () => borrarConDeshacer('metas', meta, `Meta borrada: ${meta.nombre}`));
+    const fila = li.querySelector('.fila');
+    fila.classList.add('meta');
+    if (cumplida) fila.classList.add('cumplida');
+    fila.style.display = 'grid';
+
+    const arriba = document.createElement('div');
+    arriba.className = 'meta-arriba';
+    const aportar = document.createElement('button');
+    aportar.type = 'button';
+    aportar.className = 'boton-aportar';
+    aportar.textContent = 'Aportar';
+    aportar.addEventListener('click', () => abrirFormulario({ tipo: 'ahorro', meta: meta.id }));
+    arriba.append(icono(cumplida ? 'ti-trophy' : 'ti-target'), textoFila(meta.nombre, cumplida ? '¡Meta cumplida!' : `Faltan ${dinero.format(meta.objetivo - ahorrado)}`), aportar);
+
+    const barra = document.createElement('div');
+    barra.className = 'barra';
+    barra.innerHTML = '<div></div>';
+    const abajo = document.createElement('div');
+    abajo.className = 'meta-abajo';
+    abajo.innerHTML = `<span>${dinero.format(ahorrado)} de ${dinero.format(meta.objetivo)}</span><span>${avance}%</span>`;
+
+    fila.append(arriba, barra, abajo);
+    ul.append(li);
+    llenar(barra.firstChild, avance);
+  }
+}
+
+// ---------- Racha ----------
 
 function dibujarRacha() {
   const { actual, mejor, registradoHoy, semana, activos } = calcularRacha();
-  dibujarCalendario(activos);
+  const etapa = etapaDe(actual);
+
+  $('#racha-mini').textContent = actual;
+  $('#pastilla-racha .ti').style.color = actual > 0 ? etapa.color : '';
   $('#punto-racha').hidden = registradoHoy;
 
-  $('#racha-dias').textContent = `🔥 ${actual} ${actual === 1 ? 'día' : 'días'}`;
-  $('#racha-dias').classList.toggle('apagada', actual === 0);
-  $('#racha-mejor').textContent = mejor > 0 ? `Mejor racha: ${mejor}` : '';
+  const flama = $('#flama');
+  flama.style.color = etapa.color;
+  flama.style.fontSize = etapa.tamano + 'px';
+  flama.classList.toggle('viva', actual > 0);
+  $('#racha-dias').textContent = `${actual} ${actual === 1 ? 'día' : 'días'}`;
+  $('#racha-etapa').textContent = etapa.nombre;
+  $('#racha-etapa').style.color = etapa.color;
+  $('#racha-mejor').textContent = mejor > 0 ? `Tu mejor racha: ${mejor} ${mejor === 1 ? 'día' : 'días'}` : '';
 
   $('#racha-semana').replaceChildren(
     ...semana.map(({ dia, activo, esHoy }) => {
       const li = document.createElement('li');
       li.className = [activo && 'activo', esHoy && 'hoy'].filter(Boolean).join(' ');
-      li.textContent = aFecha(dia).toLocaleDateString('es-MX', { weekday: 'narrow' });
+      li.textContent = LETRAS[aFecha(dia).getDay()];
       li.title = fechaBonita(dia);
       return li;
     })
   );
 
+  const siguiente = ETAPAS.find((e) => e.desde > actual);
   let mensaje;
-  if (registradoHoy) mensaje = '✅ Ya registraste hoy. ¡Sigue así mañana!';
+  if (registradoHoy) mensaje = siguiente ? `Ya registraste hoy. Faltan ${siguiente.desde - actual} días para ${siguiente.nombre}.` : 'Ya registraste hoy. Eres leyenda.';
   else if (actual > 0) mensaje = 'Registra algo hoy para no perder tu racha.';
-  else mensaje = 'Registra algo hoy para empezar tu racha.';
+  else mensaje = 'Registra algo hoy para encender tu flama.';
   $('#racha-mensaje').textContent = mensaje;
   $('#sin-movimientos').hidden = registradoHoy;
+
+  $('#etapas').replaceChildren(
+    ...ETAPAS.slice(1).concat([]).map((e) => {
+      const div = document.createElement('div');
+      div.className = mejor >= e.desde ? 'lograda' : '';
+      div.innerHTML = `<i class="ti ti-flame" aria-hidden="true" style="color:${mejor >= e.desde ? e.color : 'var(--linea)'}"></i>`;
+      div.append(e.nombre, document.createElement('br'), `${e.desde} ${e.desde === 1 ? 'día' : 'días'}`);
+      return div;
+    })
+  );
+  $('#etapas').style.gridTemplateColumns = `repeat(${ETAPAS.length - 1}, 1fr)`;
+
+  dibujarCalendario(activos);
 }
 
 // Calendario del mes actual con los días registrados.
@@ -308,70 +853,23 @@ function dibujarCalendario(activos) {
     celdas.push(li);
   }
   $('#calendario').replaceChildren(...celdas);
-  const mes = primero.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-  $('#calendario-titulo').textContent = mes[0].toUpperCase() + mes.slice(1);
+  $('#calendario-titulo').textContent = mayuscula(primero.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }));
   $('#calendario-cuenta').textContent = `${registrados} de ${Number(hoyTexto.slice(8))} días`;
 }
 
-function dibujarTotal() {
-  const total = datos.movimientos.reduce((t, m) => t + efecto(m), 0);
-  const enMetas = sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro'));
-
-  $('#total-dinero').textContent = dinero.format(total);
-  $('#total-dinero').classList.toggle('negativo', total < 0);
-  $('#total-disponible').textContent = dinero.format(total - enMetas);
-  $('#total-metas').textContent = dinero.format(enMetas);
-  $('#pista-saldo').hidden = datos.movimientos.some((m) => m.categoria === SALDO_INICIAL);
-}
-
-function dibujarMetas() {
-  const ul = $('#metas');
-  ul.replaceChildren();
-  if (datos.metas.length === 0) {
-    ul.append(vacio('Crea una meta para empezar a ahorrar con un objetivo.'));
-    return;
-  }
-  for (const meta of datos.metas) {
-    const ahorrado = ahorradoEn(meta);
-    const avance = Math.min(100, Math.round((ahorrado / meta.objetivo) * 100));
-    const cumplida = ahorrado >= meta.objetivo;
-
-    const li = document.createElement('li');
-    li.className = 'tarjeta meta' + (cumplida ? ' cumplida' : '');
-    li.innerHTML = `
-      <div class="fila"><strong></strong><span class="meta-acciones"></span></div>
-      <div class="barra"><div style="width:${avance}%"></div></div>
-      <small></small>`;
-    li.querySelector('strong').textContent = (cumplida ? '🎉 ' : '🎯 ') + meta.nombre;
-    li.querySelector('small').textContent = cumplida
-      ? `¡Meta cumplida! ${dinero.format(ahorrado)} de ${dinero.format(meta.objetivo)}`
-      : `${dinero.format(ahorrado)} de ${dinero.format(meta.objetivo)} · ${avance}% · faltan ${dinero.format(meta.objetivo - ahorrado)}`;
-
-    const aportar = document.createElement('button');
-    aportar.type = 'button';
-    aportar.className = 'enlace';
-    aportar.textContent = 'Aportar';
-    aportar.addEventListener('click', () => abrirFormulario({ tipo: 'ahorro', meta: meta.id }));
-
-    li.querySelector('.meta-acciones').append(
-      aportar,
-      botonBorrar(`Meta borrada: ${meta.nombre}`, () => borrar('metas', meta.id))
-    );
-    ul.append(li);
-  }
-}
+// ---------- Pagos pendientes ----------
 
 function dibujarPagos() {
   const ordenados = [...datos.pendientes].sort((a, b) => a.fecha.localeCompare(b.fecha));
   const debo = ordenados.filter((p) => p.tipo === 'debo');
   const meDeben = ordenados.filter((p) => p.tipo === 'me-deben');
 
-  $('#total-debo').textContent = dinero.format(sumar(debo));
-  $('#total-me-deben').textContent = dinero.format(sumar(meDeben));
+  contar($('#total-debo'), sumar(debo), 700);
+  contar($('#total-me-deben'), sumar(meDeben), 700);
   // El punto en la barra avisa de pagos que vencen hoy, mañana o ya vencieron.
   $('#punto-pagos').hidden = !ordenados.some((p) => diasPara(p.fecha) <= 1);
 
-  dibujarListaPagos($('#lista-debo'), debo, 'No le debes nada a nadie. 🙌');
+  dibujarListaPagos($('#lista-debo'), debo, 'No le debes nada a nadie.');
   dibujarListaPagos($('#lista-me-deben'), meDeben, 'Nadie te debe nada.');
 }
 
@@ -383,30 +881,20 @@ function dibujarListaPagos(ul, pagos, textoVacio) {
   }
   for (const p of pagos) {
     const dias = diasPara(p.fecha);
-    const li = document.createElement('li');
-    li.className = p.tipo === 'debo' ? 'gasto' : 'ingreso';
-
-    const info = document.createElement('div');
-    const titulo = document.createElement('strong');
-    titulo.textContent = p.persona;
-    const detalle = document.createElement('small');
+    const li = filaDeslizable(p.tipo, () => borrarConDeshacer('pendientes', p, `Borrado: ${p.persona} ${dinero.format(p.monto)}`));
     const cuando = document.createElement('span');
     cuando.className = 'vence' + (dias < 0 ? ' vencido' : dias <= 1 ? ' pronto' : '');
     cuando.textContent = cuandoVence(p.fecha);
+    const detalle = document.createDocumentFragment();
     detalle.append(cuando, p.nota ? ` · ${p.nota}` : '');
-    info.append(titulo, detalle);
-
-    const monto = document.createElement('span');
-    monto.className = 'monto';
-    monto.textContent = dinero.format(p.monto);
 
     const listo = document.createElement('button');
     listo.type = 'button';
-    listo.className = 'listo';
+    listo.className = 'boton-listo';
     listo.textContent = p.tipo === 'debo' ? 'Pagué' : 'Me pagó';
     listo.addEventListener('click', () => liquidarPago(p));
 
-    li.append(info, monto, listo, botonBorrar(`Borrado: ${p.persona} ${dinero.format(p.monto)}`, () => borrar('pendientes', p.id)));
+    li.querySelector('.fila').append(icono(p.tipo === 'debo' ? 'ti-arrow-up-right' : 'ti-arrow-down-left'), textoFila(p.persona, detalle), montoFila(dinero.format(p.monto)), listo);
     ul.append(li);
   }
 }
@@ -425,104 +913,63 @@ function liquidarPago(p) {
     meta: '',
   });
   borrar('pendientes', p.id);
-  avisar(debo ? `✅ Pagado a ${p.persona}. Lo anoté como gasto.` : `✅ ${p.persona} te pagó. Lo anoté como ingreso.`);
+  vibrar();
+  avisar(debo ? `Pagado a ${p.persona}. Lo anoté como gasto.` : `${p.persona} te pagó. Lo anoté como ingreso.`);
 }
 
-function dibujarCategorias(delMes, totalGastos) {
-  const porCategoria = {};
-  for (const m of delMes) {
-    if (m.tipo === 'gasto') porCategoria[m.categoria] = (porCategoria[m.categoria] || 0) + m.monto;
-  }
-  const ordenadas = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
+// ---------- Avisos ----------
 
-  const ul = $('#categorias');
-  ul.replaceChildren();
-  if (ordenadas.length === 0) {
-    ul.append(vacio('Sin gastos este mes.'));
-    return;
-  }
-  for (const [categoria, monto] of ordenadas) {
-    const porcentaje = Math.round((monto / totalGastos) * 100);
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <div class="fila"><span></span><span>${dinero.format(monto)} · ${porcentaje}%</span></div>
-      <div class="barra"><div style="width:${porcentaje}%"></div></div>`;
-    li.querySelector('.fila span').textContent = categoria;
-    ul.append(li);
-  }
-}
-
-function dibujarLista(delMes) {
-  const ul = $('#lista');
-  ul.replaceChildren();
-  if (delMes.length === 0) {
-    ul.append(vacio('Aún no hay movimientos este mes. Toca + para agregar uno.'));
-    return;
-  }
-  const signos = { gasto: '−', ingreso: '+', ahorro: '→ ' };
-  for (const m of delMes) {
-    const li = document.createElement('li');
-    li.className = m.tipo;
-
-    const info = document.createElement('div');
-    const titulo = document.createElement('strong');
-    titulo.textContent = m.tipo === 'ahorro' ? `🎯 ${m.categoria}` : m.categoria;
-    const detalle = document.createElement('small');
-    detalle.textContent = [fechaBonita(m.fecha), m.nota].filter(Boolean).join(' · ');
-    info.append(titulo, detalle);
-
-    const monto = document.createElement('span');
-    monto.className = 'monto';
-    monto.textContent = signos[m.tipo] + dinero.format(m.monto);
-
-    li.append(info, monto, botonBorrar(`Borrado: ${m.categoria} ${dinero.format(m.monto)}`, () => borrar('movimientos', m.id)));
-    ul.append(li);
-  }
-}
-
-// La × pide confirmación en el mismo botón: primer toque "¿Borrar?", segundo toque borra.
-function botonBorrar(textoAviso, alBorrar) {
-  const boton = document.createElement('button');
-  boton.type = 'button';
-  boton.className = 'borrar';
-  boton.setAttribute('aria-label', 'Borrar');
-  boton.textContent = '×';
-  let regresar;
-  boton.addEventListener('click', () => {
-    if (boton.classList.contains('confirmar')) {
-      clearTimeout(regresar);
-      alBorrar();
-      avisar(textoAviso);
-      return;
-    }
-    boton.classList.add('confirmar');
-    boton.textContent = '¿Borrar?';
-    regresar = setTimeout(() => {
-      boton.classList.remove('confirmar');
-      boton.textContent = '×';
-    }, 3000);
-  });
-  return boton;
-}
-
-function vacio(texto) {
-  const li = document.createElement('li');
-  li.className = 'vacio';
-  li.textContent = texto;
-  return li;
-}
-
-// Mensaje corto que aparece abajo unos segundos.
 let ocultarAviso;
-function avisar(texto) {
+function avisar(texto, textoAccion, alTocar) {
   const aviso = $('#aviso');
-  aviso.textContent = texto;
+  const accion = $('#aviso-accion');
+  $('#aviso-texto').textContent = texto;
+  accion.hidden = !textoAccion;
+  accion.textContent = textoAccion || '';
+  accion.onclick = () => {
+    aviso.hidden = true;
+    alTocar?.();
+  };
+  aviso.hidden = true;
+  aviso.getBoundingClientRect();
   aviso.hidden = false;
   clearTimeout(ocultarAviso);
-  ocultarAviso = setTimeout(() => (aviso.hidden = true), 3500);
+  ocultarAviso = setTimeout(() => (aviso.hidden = true), textoAccion ? 5000 : 3500);
 }
 
-// ---------- Formulario de movimientos ----------
+// ---------- Hojas que suben desde abajo ----------
+
+function abrirHoja(hoja) {
+  hoja.classList.remove('cerrando');
+  hoja.showModal();
+}
+
+function cerrarHoja(hoja) {
+  if (!hoja.open) return;
+  hoja.classList.add('cerrando');
+  setTimeout(() => {
+    hoja.classList.remove('cerrando');
+    hoja.close();
+  }, 210);
+}
+
+for (const hoja of document.querySelectorAll('.hoja')) {
+  // Tocar fuera de la hoja (en lo oscuro) la cierra.
+  hoja.addEventListener('click', (e) => {
+    if (e.target === hoja) cerrarHoja(hoja);
+  });
+  hoja.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    cerrarHoja(hoja);
+  });
+}
+for (const boton of document.querySelectorAll('[data-cierra]')) {
+  boton.addEventListener('click', () => cerrarHoja(boton.closest('dialog')));
+}
+
+// ---------- Formulario de movimientos (teclado propio) ----------
+
+const formulario = { monto: '0', categoria: null };
 
 // Las categorías fijas más las que tú has escrito (se sacan de tus movimientos, así llegan a todos tus dispositivos).
 function categoriasDe(tipo) {
@@ -534,98 +981,149 @@ function categoriasDe(tipo) {
   return [...fijas, ...[...propias].sort(), 'Otros'];
 }
 
-// Para ahorros, la "categoría" es la meta a la que va el dinero.
-function llenarCategorias() {
+function pintarMonto() {
+  const [enteros, decimales] = formulario.monto.split('.');
+  $('#monto-pantalla').textContent = '$' + Number(enteros).toLocaleString('es-MX') + (decimales !== undefined ? '.' + decimales : '');
+}
+
+// Chips de categoría; para ahorros, los chips son tus metas.
+function pintarCategorias() {
   const tipo = $('#form').tipo.value;
-  const select = $('#categoria');
-  $('#etiqueta-categoria').textContent = tipo === 'ahorro' ? 'Meta' : 'Categoría';
-  if (tipo === 'ahorro') {
-    select.replaceChildren(...datos.metas.map((meta) => new Option(meta.nombre, meta.id)));
-    if (datos.metas.length === 0) select.append(new Option('Primero crea una meta', ''));
-  } else {
-    select.replaceChildren(...categoriasDe(tipo).map((c) => new Option(c, c)), new Option('✏️ Escribir mi propia categoría…', NUEVA_CATEGORIA));
-  }
-  mostrarNuevaCategoria();
-}
+  const contenedor = $('#chips-categoria');
+  const opciones =
+    tipo === 'ahorro'
+      ? datos.metas.map((meta) => ({ valor: meta.id, texto: meta.nombre, icono: 'ti-target' }))
+      : categoriasDe(tipo).map((c) => ({ valor: c, texto: c, icono: ICONOS[c] || 'ti-tag' }));
+  if (tipo !== 'ahorro') opciones.push({ valor: NUEVA_CATEGORIA, texto: 'Otra', icono: 'ti-pencil' });
 
-// Muestra la caja de texto solo cuando eliges "Escribir mi propia categoría".
-function mostrarNuevaCategoria() {
+  if (!opciones.some((o) => o.valor === formulario.categoria)) formulario.categoria = opciones[0]?.valor ?? null;
+  contenedor.replaceChildren(
+    ...opciones.map((o) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip' + (o.valor === formulario.categoria ? ' activo' : '');
+      chip.setAttribute('role', 'radio');
+      chip.setAttribute('aria-checked', o.valor === formulario.categoria);
+      chip.innerHTML = `<i class="ti ${o.icono}" aria-hidden="true"></i>`;
+      chip.append(o.texto);
+      chip.addEventListener('click', () => {
+        formulario.categoria = o.valor;
+        pintarCategorias();
+        if (o.valor === NUEVA_CATEGORIA) $('#nueva-categoria').focus();
+      });
+      return chip;
+    })
+  );
+  if (tipo === 'ahorro' && datos.metas.length === 0) contenedor.append(vacio('Primero crea una meta en la sección Metas.'));
+
   const caja = $('#nueva-categoria');
-  const escribir = $('#categoria').value === NUEVA_CATEGORIA;
-  caja.hidden = !escribir;
-  caja.required = escribir;
-  if (!escribir) caja.value = '';
+  caja.hidden = formulario.categoria !== NUEVA_CATEGORIA;
+  if (caja.hidden) caja.value = '';
 }
-
-$('#categoria').addEventListener('change', () => {
-  mostrarNuevaCategoria();
-  if (!$('#nueva-categoria').hidden) $('#nueva-categoria').focus();
-});
 
 // Abre el formulario; si viene algo prellenado (de la IA o de "Aportar"), lo deja listo para revisar.
 function abrirFormulario(prellenado = {}) {
   const form = $('#form');
   form.reset();
   form.tipo.value = prellenado.tipo || 'gasto';
-  llenarCategorias();
   form.fecha.value = prellenado.fecha || hoy();
-  if (prellenado.monto) form.monto.value = prellenado.monto;
-  if (prellenado.nota) form.nota.value = prellenado.nota;
-  if (prellenado.meta) form.categoria.value = prellenado.meta;
-  if (prellenado.categoria && form.tipo.value !== 'ahorro') {
-    form.categoria.value = categoriasDe(form.tipo.value).includes(prellenado.categoria) ? prellenado.categoria : 'Otros';
+  form.nota.value = prellenado.nota || '';
+  formulario.monto = prellenado.monto ? String(prellenado.monto) : '0';
+  formulario.categoria = prellenado.meta || prellenado.categoria || null;
+  if (prellenado.categoria && form.tipo.value !== 'ahorro' && !categoriasDe(form.tipo.value).includes(prellenado.categoria)) {
+    formulario.categoria = 'Otros';
   }
-  mostrarNuevaCategoria();
-  $('#dialogo').showModal();
-  if (!prellenado.monto) form.monto.focus();
+  pintarMonto();
+  pintarCategorias();
+  abrirHoja($('#hoja-movimiento'));
 }
 
 for (const radio of $('#form').querySelectorAll('input[name="tipo"]')) {
-  radio.addEventListener('change', llenarCategorias);
+  radio.addEventListener('change', () => {
+    formulario.categoria = null;
+    pintarCategorias();
+  });
 }
+
+$('#teclado').append(
+  ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'borrar'].map((tecla) => {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'tecla';
+    if (tecla === 'borrar') {
+      boton.innerHTML = '<i class="ti ti-backspace" aria-hidden="true"></i>';
+      boton.setAttribute('aria-label', 'Borrar');
+    } else {
+      boton.textContent = tecla;
+    }
+    boton.addEventListener('click', () => {
+      let m = formulario.monto;
+      if (tecla === 'borrar') m = m.length > 1 ? m.slice(0, -1) : '0';
+      else if (tecla === '.') m = m.includes('.') ? m : m + '.';
+      else if (/\.\d\d$/.test(m) || m.replace('.', '').length >= 9) return;
+      else m = m === '0' ? tecla : m + tecla;
+      formulario.monto = m;
+      pintarMonto();
+    });
+    return boton;
+  })
+);
+
+function temblarMonto() {
+  const pantalla = $('#monto-pantalla');
+  pantalla.classList.remove('tiembla');
+  pantalla.getBoundingClientRect();
+  pantalla.classList.add('tiembla');
+}
+$('#monto-pantalla').addEventListener('animationend', (e) => e.target.classList.remove('tiembla'));
 
 $('#form').addEventListener('submit', (evento) => {
   evento.preventDefault();
   const form = evento.target;
   const tipo = form.tipo.value;
-  const meta = tipo === 'ahorro' ? datos.metas.find((x) => x.id === form.categoria.value) : null;
+  const monto = Math.round(parseFloat(formulario.monto) * 100) / 100;
+  if (!monto) {
+    temblarMonto();
+    return;
+  }
+  const meta = tipo === 'ahorro' ? datos.metas.find((x) => x.id === formulario.categoria) : null;
   if (tipo === 'ahorro' && !meta) {
-    avisar('Primero crea una meta en "Mis metas"');
+    avisar('Primero crea una meta en la sección Metas');
     return;
   }
   // Una categoría escrita a mano empieza con mayúscula: "gimnasio" → "Gimnasio"
   const escrita = form.nuevaCategoria.value.trim();
-  if (form.categoria.value === NUEVA_CATEGORIA && !escrita) {
+  if (formulario.categoria === NUEVA_CATEGORIA && !escrita) {
+    $('#nueva-categoria').focus();
     avisar('Escribe el nombre de tu categoría');
     return;
   }
-  const categoria = meta
-    ? meta.nombre
-    : form.categoria.value === NUEVA_CATEGORIA
-      ? escrita[0].toUpperCase() + escrita.slice(1)
-      : form.categoria.value;
+  const categoria = meta ? meta.nombre : formulario.categoria === NUEVA_CATEGORIA ? mayuscula(escrita) : formulario.categoria;
+
+  const id = crypto.randomUUID();
+  ultimoAgregado = id;
+  $('#mes').value = form.fecha.value.slice(0, 7); // muestra el mes del movimiento nuevo
   agregar('movimientos', {
-    id: crypto.randomUUID(),
+    id,
     tipo,
-    monto: Math.round(Number(form.monto.value) * 100) / 100,
+    monto,
     categoria,
     nota: form.nota.value.trim(),
     fecha: form.fecha.value,
     creado: Date.now(),
     meta: meta ? meta.id : '',
   });
-  $('#mes').value = form.fecha.value.slice(0, 7); // muestra el mes del movimiento nuevo
-  $('#dialogo').close();
-  dibujar();
+  vibrar();
+  cerrarHoja($('#hoja-movimiento'));
+  if (tipo === 'ahorro') avisar(`Apartaste ${dinero.format(monto)} para ${meta.nombre}`);
 });
-
-$('#mes').addEventListener('change', dibujar);
 
 // ---------- Racha ----------
 
 $('#sin-movimientos').addEventListener('click', () => {
   agregar('dias', { id: hoy(), creado: Date.now() });
-  avisar('🔥 ¡Día registrado! Tu racha sigue.');
+  vibrar();
+  avisar('Día registrado. Tu racha sigue.');
 });
 
 // ---------- Metas ----------
@@ -639,8 +1137,8 @@ $('#form-meta').addEventListener('submit', (evento) => {
     objetivo: Math.round(Number(form.objetivo.value) * 100) / 100,
     creado: Date.now(),
   });
-  $('#dialogo-meta').close();
-  avisar('🎯 Meta creada. Toca "Aportar" cuando apartes dinero para ella.');
+  cerrarHoja($('#hoja-meta'));
+  avisar('Meta creada. Toca "Aportar" cuando apartes dinero para ella.');
 });
 
 // ---------- Pagos pendientes ----------
@@ -666,11 +1164,11 @@ $('#form-pago').addEventListener('submit', (evento) => {
     nota: form.nota.value.trim(),
     creado: Date.now(),
   });
-  $('#dialogo-pago').close();
-  avisar(nube ? '📌 Anotado. Te lo recordaré por Telegram un día antes.' : '📌 Anotado.');
+  cerrarHoja($('#hoja-pago'));
+  avisar(nube ? 'Anotado. Te lo recordaré por Telegram un día antes.' : 'Anotado.');
 });
 
-// ---------- Secciones y botones de abrir/cerrar ----------
+// ---------- Secciones ----------
 
 function mostrarVista(nombre) {
   if (!$(`#vista-${nombre}`)) nombre = 'dinero';
@@ -681,38 +1179,82 @@ function mostrarVista(nombre) {
     if (boton.dataset.vista === nombre) boton.setAttribute('aria-current', 'page');
     else boton.removeAttribute('aria-current');
   }
-  $('#titulo').textContent = $(`#vista-${nombre}`).dataset.titulo;
-  $('#mes').hidden = nombre !== 'dinero'; // el mes solo aplica a la sección Dinero
+  $('#boton-agregar').hidden = nombre !== 'dinero';
   window.scrollTo(0, 0);
-  try {
-    localStorage.setItem('mi-dinero:vista', JSON.stringify(nombre));
-  } catch {}
+  // Al entrar a una sección se repiten sus animaciones.
+  if (nombre === 'dinero') {
+    $('#saldo').dataset.valor = 0;
+    dibujarSaldo();
+    dibujarGrafica(true);
+    dibujarMes();
+  } else if (nombre === 'metas') {
+    dibujarMetas();
+  } else if (nombre === 'pagos') {
+    dibujarPagos();
+  }
+  escribir('mi-dinero:vista', nombre);
 }
 
 for (const boton of document.querySelectorAll('.barra-secciones button')) {
   boton.addEventListener('click', () => mostrarVista(boton.dataset.vista));
 }
+$('#pastilla-racha').addEventListener('click', () => mostrarVista('racha'));
 
 const abridores = {
   movimiento: () => abrirFormulario(),
   meta: () => {
     $('#form-meta').reset();
-    $('#dialogo-meta').showModal();
+    abrirHoja($('#hoja-meta'));
   },
   pago: () => {
     const form = $('#form-pago');
     form.reset();
     form.fecha.value = sumarDias(hoy(), 7);
     ajustarFormularioPago();
-    $('#dialogo-pago').showModal();
+    abrirHoja($('#hoja-pago'));
   },
 };
 for (const boton of document.querySelectorAll('[data-abre]')) {
   boton.addEventListener('click', abridores[boton.dataset.abre]);
 }
-for (const boton of document.querySelectorAll('[data-cierra]')) {
-  boton.addEventListener('click', () => boton.closest('dialog').close());
+
+// Controles de la gráfica
+for (const boton of document.querySelectorAll('[data-modo]')) {
+  boton.addEventListener('click', () => {
+    grafica.modo = boton.dataset.modo;
+    document.querySelectorAll('[data-modo]').forEach((b) => b.classList.toggle('activo', b === boton));
+    dibujarGrafica(true);
+  });
 }
+for (const boton of document.querySelectorAll('[data-que]')) {
+  boton.addEventListener('click', () => {
+    grafica.que = boton.dataset.que;
+    document.querySelectorAll('[data-que]').forEach((b) => b.classList.toggle('activo', b === boton));
+    dibujarGrafica(true);
+  });
+}
+for (const boton of document.querySelectorAll('[data-rango]')) {
+  boton.addEventListener('click', () => {
+    grafica.rango = Number(boton.dataset.rango);
+    document.querySelectorAll('[data-rango]').forEach((b) => b.classList.toggle('activo', b === boton));
+    dibujarGrafica(true);
+  });
+}
+const lienzo = $('#grafica');
+lienzo.addEventListener('pointerdown', (e) => {
+  lienzo.setPointerCapture(e.pointerId);
+  recorrerGrafica(e);
+});
+lienzo.addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'mouse' || grafica.tocando) recorrerGrafica(e);
+});
+lienzo.addEventListener('pointerleave', soltarGrafica);
+lienzo.addEventListener('pointerup', (e) => {
+  if (e.pointerType !== 'mouse') soltarGrafica();
+});
+lienzo.addEventListener('pointercancel', soltarGrafica);
+
+$('#mes').addEventListener('change', dibujarMes);
 
 // ---------- IA: escribir en lenguaje normal ----------
 
@@ -726,7 +1268,7 @@ $('#form-ia').addEventListener('submit', async (evento) => {
   const form = evento.target;
   const boton = form.querySelector('button');
   boton.disabled = true;
-  boton.textContent = 'Pensando…';
+  boton.innerHTML = '<i class="ti ti-loader-2" aria-hidden="true"></i>';
   try {
     const { movimiento } = await llamarNube({
       accion: 'interpretar',
@@ -740,17 +1282,55 @@ $('#form-ia').addEventListener('submit', async (evento) => {
     avisar(explicarError(error));
   } finally {
     boton.disabled = false;
-    boton.textContent = 'Listo';
+    boton.innerHTML = '<i class="ti ti-arrow-up" aria-hidden="true"></i>';
   }
 });
 
-// ---------- Ajustes de la nube ----------
+// ---------- Ajustes: perfil, nube y respaldo ----------
 
-$('#abrir-ajustes').addEventListener('click', () => {
+function abrirAjustes() {
   const form = $('#form-ajustes');
   form.url.value = nube?.url || '';
   form.clave.value = nube?.clave || '';
-  $('#dialogo-ajustes').showModal();
+  form.nombre.value = perfil.nombre;
+  dibujarEncabezado();
+  abrirHoja($('#hoja-ajustes'));
+}
+$('#abrir-ajustes').addEventListener('click', abrirAjustes);
+$('#avatar').addEventListener('click', abrirAjustes);
+
+function guardarPerfil() {
+  escribir(CLAVE_PERFIL, perfil);
+  dibujarEncabezado();
+}
+
+$('#nombre').addEventListener('input', (e) => {
+  perfil.nombre = e.target.value.trim();
+  guardarPerfil();
+});
+
+// La foto se achica a 160 px para que quepa en el teléfono sin ocupar mucho.
+$('#foto').addEventListener('change', (evento) => {
+  const archivo = evento.target.files[0];
+  evento.target.value = '';
+  if (!archivo) return;
+  const imagen = new Image();
+  imagen.onload = () => {
+    const lado = 160;
+    const lienzoFoto = document.createElement('canvas');
+    lienzoFoto.width = lienzoFoto.height = lado;
+    const menor = Math.min(imagen.width, imagen.height);
+    lienzoFoto.getContext('2d').drawImage(imagen, (imagen.width - menor) / 2, (imagen.height - menor) / 2, menor, menor, 0, 0, lado, lado);
+    perfil.foto = lienzoFoto.toDataURL('image/jpeg', 0.85);
+    URL.revokeObjectURL(imagen.src);
+    guardarPerfil();
+  };
+  imagen.src = URL.createObjectURL(archivo);
+});
+
+$('#quitar-foto').addEventListener('click', () => {
+  perfil.foto = '';
+  guardarPerfil();
 });
 
 $('#form-ajustes').addEventListener('submit', (evento) => {
@@ -759,13 +1339,13 @@ $('#form-ajustes').addEventListener('submit', (evento) => {
   const estabaConectada = Boolean(nube);
   nube = form.url.value.trim() ? { url: form.url.value.trim(), clave: form.clave.value } : null;
   escribir(CLAVE_NUBE, nube);
-  $('#dialogo-ajustes').close();
+  cerrarHoja($('#hoja-ajustes'));
 
   if (!nube) {
     pendientes = [];
     escribir(CLAVE_PENDIENTES, pendientes);
     mostrarIA();
-    mostrarEstado('Solo en este teléfono. Toca ⚙ para guardar en la nube.');
+    mostrarEstado('ti-device-mobile', 'Solo en este teléfono. Conecta la nube en ajustes.');
     return;
   }
   // La primera vez, sube lo que ya había en el teléfono.
@@ -776,8 +1356,6 @@ $('#form-ajustes').addEventListener('submit', (evento) => {
   }
   sincronizar();
 });
-
-// ---------- Respaldo ----------
 
 $('#exportar').addEventListener('click', () => {
   const archivo = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
@@ -822,7 +1400,7 @@ mostrarVista(leer('mi-dinero:vista', 'dinero'));
 if (nube) {
   sincronizar();
 } else {
-  mostrarEstado('Solo en este teléfono. Toca ⚙ para guardar en la nube.');
+  mostrarEstado('ti-device-mobile', 'Solo en este teléfono. Conecta la nube en ajustes.');
 }
 
 // Al volver a abrir la app, trae lo más nuevo de la nube y actualiza la racha.

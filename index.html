@@ -4,48 +4,80 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Mi Dinero</title>
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#0B0F17">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>
-    <h1 id="titulo">Mi Dinero</h1>
-    <div class="header-derecha">
-      <input type="month" id="mes" aria-label="Mes a mostrar">
-      <button type="button" id="abrir-ajustes" class="icono" aria-label="Ajustes">⚙</button>
+  <header class="encabezado">
+    <button type="button" id="avatar" class="avatar" aria-label="Tu perfil"></button>
+    <div class="saludo">
+      <strong id="saludo">Hola</strong>
+      <span id="fecha-hoy"></span>
     </div>
+    <button type="button" id="pastilla-racha" class="pastilla-racha" aria-label="Ver tu racha">
+      <i class="ti ti-flame" aria-hidden="true"></i><b id="racha-mini">0</b>
+    </button>
+    <button type="button" id="abrir-ajustes" class="boton-icono" aria-label="Ajustes"><i class="ti ti-settings" aria-hidden="true"></i></button>
   </header>
 
   <main>
     <p id="estado" class="estado"></p>
 
     <!-- ========== Sección: Dinero ========== -->
-    <section id="vista-dinero" class="vista" data-titulo="Mi Dinero">
+    <section id="vista-dinero" class="vista">
+      <div class="saldo-bloque">
+        <span id="saldo-etiqueta" class="suave">Tu dinero</span>
+        <strong id="saldo" class="saldo">$0.00</strong>
+        <span id="comparacion" class="comparacion"></span>
+      </div>
+
       <!-- Escribir un movimiento en lenguaje normal; la IA lo convierte -->
       <form id="form-ia" class="ia" hidden>
-        <input type="text" name="texto" placeholder="✨ Escribe: gasté 150 en tacos ayer" autocomplete="off" required>
-        <button type="submit">Listo</button>
+        <i class="ti ti-sparkles" aria-hidden="true"></i>
+        <input type="text" name="texto" placeholder="Escribe: gasté 150 en tacos ayer" autocomplete="off" required>
+        <button type="submit" class="boton-icono" aria-label="Interpretar"><i class="ti ti-arrow-up" aria-hidden="true"></i></button>
       </form>
 
-      <div class="resumen">
-        <div class="tarjeta ingreso"><span>Ingresos</span><strong id="total-ingresos">$0.00</strong></div>
-        <div class="tarjeta gasto"><span>Gastos</span><strong id="total-gastos">$0.00</strong></div>
-        <div class="tarjeta balance">
-          <span>Balance del mes</span><strong id="balance">$0.00</strong>
-          <small id="apartado-mes" class="suave"></small>
+      <div class="tarjeta grafica">
+        <div class="grafica-arriba">
+          <strong id="grafica-titulo">Esta semana</strong>
+          <div class="segmentos" role="group" aria-label="Tipo de gráfica">
+            <button type="button" data-modo="barras" class="activo">Barras</button>
+            <button type="button" data-modo="tendencia">Tendencia</button>
+          </div>
+        </div>
+        <div id="grafica-que" class="chips" role="group" aria-label="Qué mostrar">
+          <button type="button" class="chip activo" data-que="gas">Gastos</button>
+          <button type="button" class="chip" data-que="ing">Ingresos</button>
+        </div>
+        <svg id="grafica" viewBox="0 0 300 170" role="img" aria-label="Gráfica de tu dinero"></svg>
+        <div class="chips centrado" role="group" aria-label="Rango">
+          <button type="button" class="chip activo" data-rango="7">7D</button>
+          <button type="button" class="chip" data-rango="30">1M</button>
+          <button type="button" class="chip" data-rango="90">3M</button>
         </div>
       </div>
 
-      <button type="button" class="agregar-grande" data-abre="movimiento">+ Agregar gasto o ingreso</button>
-
-      <div>
-        <h2>Movimientos del mes</h2>
-        <ul id="lista" class="lista"></ul>
+      <div class="titulo-seccion">
+        <h2>Movimientos</h2>
+        <input type="month" id="mes" class="selector-mes" aria-label="Mes a mostrar">
       </div>
+      <div class="dos-columnas">
+        <div class="tarjeta mini"><span class="suave">Ingresos</span><strong id="total-ingresos" class="positivo">$0.00</strong></div>
+        <div class="tarjeta mini"><span class="suave">Gastos</span><strong id="total-gastos" class="negativo">$0.00</strong></div>
+      </div>
+      <p id="apartado-mes" class="suave pequeno"></p>
+      <ul id="lista" class="lista"></ul>
+      <p class="pista-deslizar suave pequeno"><i class="ti ti-hand-finger-left" aria-hidden="true"></i> Desliza un movimiento a la izquierda para borrarlo</p>
 
       <div>
         <h2>¿En qué gasto?</h2>
@@ -54,176 +86,185 @@
     </section>
 
     <!-- ========== Sección: Metas ========== -->
-    <section id="vista-metas" class="vista" data-titulo="Metas" hidden>
-      <div class="tarjeta total">
-        <span>Mi dinero hoy</span>
-        <strong id="total-dinero">$0.00</strong>
-        <div class="total-detalle">
-          <span>Disponible <b id="total-disponible">$0.00</b></span>
-          <span>En metas <b id="total-metas">$0.00</b></span>
-        </div>
-        <p id="pista-saldo" class="pista" hidden>¿Ya tenías dinero antes de usar la app? Regístralo en <b>Dinero</b> → Ingreso → <b>Saldo inicial</b>.</p>
+    <section id="vista-metas" class="vista" hidden>
+      <div class="dos-columnas">
+        <div class="tarjeta mini"><span class="suave">Disponible</span><strong id="total-disponible">$0.00</strong></div>
+        <div class="tarjeta mini"><span class="suave">En metas</span><strong id="total-metas" class="acento2">$0.00</strong></div>
       </div>
+      <p id="pista-saldo" class="pista" hidden>¿Ya tenías dinero antes de usar la app? Regístralo en <b>Dinero</b> → Ingreso → <b>Saldo inicial</b>.</p>
 
-      <button type="button" class="agregar-grande" data-abre="meta">+ Nueva meta</button>
-
-      <div>
-        <h2>Mis metas</h2>
-        <ul id="metas" class="metas"></ul>
-      </div>
+      <button type="button" class="boton-grande" data-abre="meta"><i class="ti ti-plus" aria-hidden="true"></i> Nueva meta</button>
+      <ul id="metas" class="metas"></ul>
     </section>
 
     <!-- ========== Sección: Racha ========== -->
-    <section id="vista-racha" class="vista" data-titulo="Racha" hidden>
+    <section id="vista-racha" class="vista" hidden>
       <div class="tarjeta racha">
-        <strong id="racha-dias">🔥 0 días</strong>
-        <span id="racha-mejor" class="suave"></span>
+        <i id="flama" class="ti ti-flame flama" aria-hidden="true"></i>
+        <strong id="racha-dias">0 días</strong>
+        <span id="racha-etapa" class="etapa"></span>
+        <span id="racha-mejor" class="suave pequeno"></span>
         <ol id="racha-semana" class="racha-semana" aria-label="Últimos 7 días"></ol>
         <p id="racha-mensaje" class="racha-mensaje"></p>
-        <button type="button" id="sin-movimientos" class="secundario" hidden>Hoy no tuve movimientos ✓</button>
+        <button type="button" id="sin-movimientos" class="boton-secundario" hidden><i class="ti ti-check" aria-hidden="true"></i> Hoy no tuve movimientos</button>
       </div>
 
       <div class="tarjeta">
-        <div class="fila-titulo">
+        <div class="titulo-seccion">
           <h2 id="calendario-titulo">Este mes</h2>
-          <span id="calendario-cuenta" class="suave"></span>
+          <span id="calendario-cuenta" class="suave pequeno"></span>
         </div>
-        <div class="calendario-dias suave" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+        <div class="calendario-dias" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
         <ol id="calendario" class="calendario"></ol>
       </div>
 
-      <p class="ayuda-racha">Un día cuenta si registras cualquier cosa: un gasto, un ingreso, un ahorro, un pago… o si tocas <b>"Hoy no tuve movimientos"</b>.</p>
+      <div class="etapas" id="etapas"></div>
+      <p class="suave pequeno">Un día cuenta si registras cualquier cosa: un gasto, un ingreso, un ahorro, un pago, o si tocas "Hoy no tuve movimientos".</p>
     </section>
 
     <!-- ========== Sección: Pagos pendientes ========== -->
-    <section id="vista-pagos" class="vista" data-titulo="Pagos pendientes" hidden>
-      <div class="resumen">
-        <div class="tarjeta gasto"><span>Yo debo</span><strong id="total-debo">$0.00</strong></div>
-        <div class="tarjeta ingreso"><span>Me deben</span><strong id="total-me-deben">$0.00</strong></div>
+    <section id="vista-pagos" class="vista" hidden>
+      <div class="dos-columnas">
+        <div class="tarjeta mini"><span class="suave">Yo debo</span><strong id="total-debo" class="negativo">$0.00</strong></div>
+        <div class="tarjeta mini"><span class="suave">Me deben</span><strong id="total-me-deben" class="positivo">$0.00</strong></div>
       </div>
 
-      <button type="button" class="agregar-grande" data-abre="pago">+ Anotar pago pendiente</button>
+      <button type="button" class="boton-grande" data-abre="pago"><i class="ti ti-plus" aria-hidden="true"></i> Anotar pago pendiente</button>
 
       <div>
         <h2>Yo debo</h2>
-        <ul id="lista-debo" class="lista pagos"></ul>
+        <ul id="lista-debo" class="lista"></ul>
       </div>
       <div>
         <h2>Me deben</h2>
-        <ul id="lista-me-deben" class="lista pagos"></ul>
+        <ul id="lista-me-deben" class="lista"></ul>
       </div>
     </section>
   </main>
 
+  <button type="button" id="boton-agregar" class="flotante" data-abre="movimiento" aria-label="Agregar movimiento"><i class="ti ti-plus" aria-hidden="true"></i></button>
+
   <!-- Barra de secciones -->
   <nav class="barra-secciones" aria-label="Secciones">
-    <button type="button" data-vista="dinero" aria-current="page"><span class="emoji">💵</span>Dinero</button>
-    <button type="button" data-vista="metas"><span class="emoji">🎯</span>Metas</button>
-    <button type="button" data-vista="racha"><span class="emoji">🔥</span>Racha<b id="punto-racha" class="punto" hidden></b></button>
-    <button type="button" data-vista="pagos"><span class="emoji">📌</span>Pagos<b id="punto-pagos" class="punto" hidden></b></button>
+    <button type="button" data-vista="dinero" aria-current="page"><i class="ti ti-wallet" aria-hidden="true"></i>Dinero</button>
+    <button type="button" data-vista="metas"><i class="ti ti-target" aria-hidden="true"></i>Metas</button>
+    <button type="button" data-vista="racha"><i class="ti ti-flame" aria-hidden="true"></i>Racha<b id="punto-racha" class="punto" hidden></b></button>
+    <button type="button" data-vista="pagos"><i class="ti ti-receipt" aria-hidden="true"></i>Pagos<b id="punto-pagos" class="punto" hidden></b></button>
   </nav>
 
-  <!-- Formulario para agregar un movimiento -->
-  <dialog id="dialogo">
+  <!-- Hoja: nuevo movimiento con teclado propio -->
+  <dialog id="hoja-movimiento" class="hoja">
     <form id="form">
-      <h2>Nuevo movimiento</h2>
-      <div class="tipo">
+      <div class="agarradera"></div>
+      <div class="segmentos tipo" role="radiogroup" aria-label="Tipo">
         <label><input type="radio" name="tipo" value="gasto" checked><span>Gasto</span></label>
         <label><input type="radio" name="tipo" value="ingreso"><span>Ingreso</span></label>
         <label><input type="radio" name="tipo" value="ahorro"><span>Ahorro</span></label>
       </div>
-      <label>Monto
-        <input type="number" name="monto" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
-      </label>
-      <label><span id="etiqueta-categoria">Categoría</span>
-        <select name="categoria" id="categoria"></select>
-        <input type="text" name="nuevaCategoria" id="nueva-categoria" placeholder="Escribe tu categoría, ej. Gimnasio" maxlength="30" hidden>
-      </label>
-      <label>Nota
-        <input type="text" name="nota" placeholder="Opcional, ej. tacos con amigos" maxlength="80">
-      </label>
-      <label>Fecha
-        <input type="date" name="fecha" required>
-      </label>
-      <div class="acciones">
-        <button type="button" class="secundario" data-cierra>Cancelar</button>
-        <button type="submit">Guardar</button>
+      <output id="monto-pantalla" class="monto-pantalla">$0</output>
+      <div id="chips-categoria" class="chips desplazable" role="radiogroup" aria-label="Categoría"></div>
+      <input type="text" name="nuevaCategoria" id="nueva-categoria" class="campo" placeholder="Escribe tu categoría, ej. Gimnasio" maxlength="30" hidden>
+      <div class="fila-campos">
+        <input type="text" name="nota" class="campo" placeholder="Nota (opcional)" maxlength="80">
+        <input type="date" name="fecha" class="campo fecha" required aria-label="Fecha">
       </div>
+      <div id="teclado" class="teclado"></div>
+      <button type="submit" class="boton-grande">Guardar</button>
     </form>
   </dialog>
 
-  <!-- Nueva meta de ahorro -->
-  <dialog id="dialogo-meta">
+  <!-- Hoja: nueva meta -->
+  <dialog id="hoja-meta" class="hoja">
     <form id="form-meta">
+      <div class="agarradera"></div>
       <h2>Nueva meta</h2>
-      <label>¿Para qué ahorras?
-        <input type="text" name="nombre" placeholder="Ej. tenis nuevos, viaje, fondo de emergencia" maxlength="40" required>
+      <label class="etiqueta">¿Para qué ahorras?
+        <input type="text" name="nombre" class="campo" placeholder="Tenis nuevos, viaje, fondo de emergencia" maxlength="40" required>
       </label>
-      <label>¿Cuánto necesitas?
-        <input type="number" name="objetivo" inputmode="decimal" step="0.01" min="1" placeholder="0.00" required>
+      <label class="etiqueta">¿Cuánto necesitas?
+        <input type="number" name="objetivo" class="campo" inputmode="decimal" step="0.01" min="1" placeholder="0.00" required>
       </label>
       <div class="acciones">
-        <button type="button" class="secundario" data-cierra>Cancelar</button>
-        <button type="submit">Crear meta</button>
+        <button type="button" class="boton-secundario" data-cierra>Cancelar</button>
+        <button type="submit" class="boton-grande">Crear meta</button>
       </div>
     </form>
   </dialog>
 
-  <!-- Nuevo pago pendiente -->
-  <dialog id="dialogo-pago">
+  <!-- Hoja: nuevo pago pendiente -->
+  <dialog id="hoja-pago" class="hoja">
     <form id="form-pago">
+      <div class="agarradera"></div>
       <h2>Pago pendiente</h2>
-      <div class="tipo dos">
+      <div class="segmentos tipo" role="radiogroup" aria-label="Tipo de pago">
         <label><input type="radio" name="tipo" value="debo" checked><span>Yo debo</span></label>
         <label><input type="radio" name="tipo" value="me-deben"><span>Me deben</span></label>
       </div>
-      <label><span id="etiqueta-persona">¿A quién le debes?</span>
-        <input type="text" name="persona" placeholder="Ej. Darío" maxlength="40" required>
+      <label class="etiqueta"><span id="etiqueta-persona">¿A quién le debes?</span>
+        <input type="text" name="persona" class="campo" placeholder="Darío" maxlength="40" required>
       </label>
-      <label>Monto
-        <input type="number" name="monto" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
-      </label>
-      <label>¿Para cuándo?
-        <input type="date" name="fecha" required>
-      </label>
-      <label>Nota
-        <input type="text" name="nota" placeholder="Opcional, ej. lo que me prestó para el cine" maxlength="80">
+      <div class="fila-campos">
+        <label class="etiqueta">Monto
+          <input type="number" name="monto" class="campo" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
+        </label>
+        <label class="etiqueta">¿Para cuándo?
+          <input type="date" name="fecha" class="campo" required>
+        </label>
+      </div>
+      <label class="etiqueta">Nota
+        <input type="text" name="nota" class="campo" placeholder="Lo que me prestó para el cine" maxlength="80">
       </label>
       <div class="acciones">
-        <button type="button" class="secundario" data-cierra>Cancelar</button>
-        <button type="submit">Guardar</button>
+        <button type="button" class="boton-secundario" data-cierra>Cancelar</button>
+        <button type="submit" class="boton-grande">Guardar</button>
       </div>
     </form>
   </dialog>
 
-  <!-- Ajustes: nube y respaldo -->
-  <dialog id="dialogo-ajustes">
+  <!-- Hoja: ajustes (perfil, nube y respaldo) -->
+  <dialog id="hoja-ajustes" class="hoja">
     <form id="form-ajustes">
-      <h2>Guardar en la nube</h2>
-      <p class="ayuda">Pega la dirección de tu servidor de Google y la clave que inventaste. Los pasos están en <code>nube/INSTRUCCIONES.md</code>.</p>
-      <label>Dirección del servidor
-        <input type="url" name="url" placeholder="https://script.google.com/macros/s/.../exec">
-      </label>
-      <label>Clave
-        <input type="password" name="clave" autocomplete="off">
-      </label>
-      <div class="acciones">
-        <button type="button" class="secundario" data-cierra>Cancelar</button>
-        <button type="submit">Guardar</button>
+      <div class="agarradera"></div>
+      <h2>Tu perfil</h2>
+      <div class="perfil">
+        <div id="avatar-grande" class="avatar grande"></div>
+        <div class="perfil-acciones">
+          <label class="boton-secundario"><i class="ti ti-camera" aria-hidden="true"></i> Cambiar foto
+            <input type="file" id="foto" accept="image/*" hidden>
+          </label>
+          <button type="button" id="quitar-foto" class="boton-texto">Quitar foto</button>
+        </div>
       </div>
+      <label class="etiqueta">¿Cómo te llamas?
+        <input type="text" name="nombre" id="nombre" class="campo" placeholder="Shan" maxlength="20">
+      </label>
+
+      <h2 class="separado">Guardar en la nube</h2>
+      <p class="suave pequeno">Pega la dirección de tu servidor de Google y la clave que inventaste. Los pasos están en <code>nube/INSTRUCCIONES.md</code>.</p>
+      <label class="etiqueta">Dirección del servidor
+        <input type="url" name="url" class="campo" placeholder="https://script.google.com/macros/s/.../exec">
+      </label>
+      <label class="etiqueta">Clave
+        <input type="password" name="clave" class="campo" autocomplete="off">
+      </label>
 
       <h2 class="separado">Respaldo</h2>
-      <p class="ayuda">Un archivo con todo: movimientos, metas, racha y pagos. Al restaurarlo se agregan los que falten.</p>
+      <p class="suave pequeno">Un archivo con todo: movimientos, metas, racha y pagos. Al restaurarlo se agregan los que falten.</p>
       <div class="acciones izquierda">
-        <button type="button" id="exportar" class="secundario">Descargar respaldo</button>
-        <label class="boton secundario">Restaurar respaldo
+        <button type="button" id="exportar" class="boton-secundario"><i class="ti ti-download" aria-hidden="true"></i> Descargar</button>
+        <label class="boton-secundario"><i class="ti ti-upload" aria-hidden="true"></i> Restaurar
           <input type="file" id="importar" accept="application/json,.json" hidden>
         </label>
       </div>
+
+      <div class="acciones">
+        <button type="button" class="boton-secundario" data-cierra>Cancelar</button>
+        <button type="submit" class="boton-grande">Guardar</button>
+      </div>
     </form>
   </dialog>
 
-  <div id="aviso" class="aviso" role="status" hidden></div>
+  <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="app.js"></script>
 </body>
