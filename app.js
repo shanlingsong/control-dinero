@@ -80,11 +80,17 @@ async function sincronizar() {
     dibujar();
     mostrarEstado('☁ Guardado en la nube');
   } catch (error) {
-    const sinInternet = error instanceof TypeError;
-    mostrarEstado(sinInternet ? 'Sin conexión: se subirá cuando vuelva el internet' : 'Error de la nube: ' + error.message, true);
+    mostrarEstado(explicarError(error), true);
   } finally {
     sincronizando = false;
   }
+}
+
+// Un TypeError de fetch significa que no hubo respuesta: o no hay internet, o la dirección del servidor está mal.
+function explicarError(error) {
+  if (!(error instanceof TypeError || error instanceof SyntaxError)) return 'Error de la nube: ' + error.message;
+  if (!navigator.onLine) return 'Sin internet: tus cambios se subirán cuando vuelva la conexión';
+  return 'No responde el servidor. Revisa en ⚙ que la dirección esté completa y termine en /exec';
 }
 
 function mostrarEstado(texto, problema = false) {
@@ -311,7 +317,7 @@ $('#form-ia').addEventListener('submit', async (evento) => {
     form.reset();
     abrirFormulario(movimiento);
   } catch (error) {
-    avisar(error instanceof TypeError ? 'Sin conexión: la IA necesita internet' : error.message);
+    avisar(explicarError(error));
   } finally {
     boton.disabled = false;
     boton.textContent = 'Listo';
