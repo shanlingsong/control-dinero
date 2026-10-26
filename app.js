@@ -1507,32 +1507,48 @@ $('#importar').addEventListener('change', async (evento) => {
 
 // ---------- Pantalla de carga ----------
 
-const inicioCarga = performance.now();
-// La barrita aparece con una animación; hasta que se ve, solo se recuerda cuánto avanzar,
-// así siempre arranca desde 0 en vez de aparecer ya a la mitad.
-let avanceCarga = 0;
-let barraVisible = false;
+// La barrita avanza a su propio paso, con calma: aunque los datos lleguen rápido,
+// nunca sube más de VELOCIDAD_CARGA por ciento por segundo (de 0 a 100 tarda unos 3.5 s).
+const VELOCIDAD_CARGA = 28;
+let avanceCarga = 0; // hasta dónde puede llegar según lo que ya cargó
+let barraMostrada = 0; // lo que se ve en pantalla
+let cargaTerminada = false;
+
 function progresoCarga(porcentaje) {
   avanceCarga = Math.max(avanceCarga, porcentaje);
-  if (barraVisible) $('#carga-progreso').style.width = avanceCarga + '%';
 }
-setTimeout(() => {
-  barraVisible = true;
-  progresoCarga(avanceCarga);
-}, 800);
 
-// Se queda al menos 1.9 s para que se vea la animación, y se quita al terminar de cargar.
+function animarBarra(antes) {
+  return (ahora) => {
+    const segundos = (ahora - antes) / 1000;
+    // Se va frenando al acercarse a su meta, para que se vea suave.
+    const falta = avanceCarga - barraMostrada;
+    barraMostrada = Math.min(avanceCarga, barraMostrada + Math.min(VELOCIDAD_CARGA * segundos, Math.max(falta * 0.08, 0.15)));
+    const barra = $('#carga-progreso');
+    if (!barra) return;
+    barra.style.width = barraMostrada + '%';
+    if (cargaTerminada && barraMostrada >= 100) {
+      setTimeout(quitarCarga, 350);
+      return;
+    }
+    requestAnimationFrame(animarBarra(ahora));
+  };
+}
+// Empieza cuando la barrita ya apareció en pantalla.
+setTimeout(() => requestAnimationFrame(animarBarra(performance.now())), 800);
+
+// Cuando los datos están listos la barrita termina de llenarse y entonces se quita la pantalla.
 function terminarCarga() {
-  const carga = $('#carga');
-  if (!carga || carga.dataset.terminando) return;
-  carga.dataset.terminando = '1';
+  cargaTerminada = true;
   progresoCarga(100);
-  const espera = Math.max(0, 1900 - (performance.now() - inicioCarga));
-  setTimeout(() => {
-    carga.classList.add('oculta');
-    mostrarVista(leer('mi-dinero:vista', 'dinero')); // las animaciones de la sección arrancan al quitarse la carga
-    setTimeout(() => carga.remove(), 500);
-  }, espera + 350);
+}
+
+function quitarCarga() {
+  const carga = $('#carga');
+  if (!carga) return;
+  carga.classList.add('oculta');
+  mostrarVista(leer('mi-dinero:vista', 'dinero')); // las animaciones de la sección arrancan al quitarse la carga
+  setTimeout(() => carga.remove(), 500);
 }
 
 // ---------- Arranque ----------
