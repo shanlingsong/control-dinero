@@ -7,6 +7,7 @@
   --marca: #0f766e;
   --ingreso: #15803d;
   --gasto: #c2410c;
+  --racha: #ea580c;
   color-scheme: light;
 }
 
@@ -20,6 +21,7 @@
     --marca: #2dd4bf;
     --ingreso: #4ade80;
     --gasto: #fb923c;
+    --racha: #f97316;
     color-scheme: dark;
   }
 }
@@ -125,6 +127,57 @@ main {
 .tarjeta.balance { grid-column: 1 / -1; }
 .tarjeta.balance strong { font-size: 1.6rem; }
 .tarjeta.balance strong.negativo { color: var(--gasto); }
+.suave { color: var(--suave); font-size: 0.85rem; }
+
+/* Racha */
+.racha { gap: 10px; }
+.racha-arriba { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.racha-arriba > div { display: grid; flex-shrink: 0; }
+.racha #racha-dias { font-size: 1.6rem; color: var(--racha); white-space: nowrap; }
+.racha #racha-dias.apagada { color: var(--suave); }
+.racha-semana { display: flex; gap: 3px; }
+.racha-semana li {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--suave);
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+}
+.racha-semana li.activo { background: var(--racha); border-color: var(--racha); color: #fff; }
+.racha-semana li.hoy { outline: 2px solid var(--racha); outline-offset: 1px; }
+.racha-mensaje { margin: 0; font-size: 0.9rem; }
+.racha button { justify-self: start; padding: 8px 12px; font-size: 0.9rem; }
+
+/* Mi dinero hoy */
+.total strong { font-size: 1.8rem; }
+.total strong.negativo { color: var(--gasto); }
+.total-detalle { display: flex; gap: 16px; flex-wrap: wrap; }
+.total-detalle b { color: var(--texto); font-variant-numeric: tabular-nums; }
+.pista { margin: 6px 0 0; font-size: 0.85rem; color: var(--suave); }
+.pista[hidden] { display: none; }
+
+/* Metas */
+.titulo-seccion { display: flex; justify-content: space-between; align-items: baseline; }
+.enlace {
+  background: none;
+  color: var(--marca);
+  padding: 4px 0;
+}
+.metas { display: grid; gap: 8px; }
+.meta .fila { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.meta .fila strong { font-size: 1rem; }
+.meta-acciones { display: flex; align-items: center; gap: 8px; }
+.meta .barra div { background: var(--marca); }
+.meta small { color: var(--suave); }
+.meta.cumplida { border-color: var(--ingreso); }
+.meta.cumplida .barra div { background: var(--ingreso); }
+.metas li.vacio { padding: 0; }
 
 /* Listas */
 ul { list-style: none; margin: 0; padding: 0; }
@@ -153,6 +206,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .monto { font-weight: 600; font-variant-numeric: tabular-nums; }
 .ingreso .monto { color: var(--ingreso); }
 .gasto .monto { color: var(--gasto); }
+.ahorro .monto { color: var(--marca); }
 .borrar {
   background: none;
   color: var(--suave);
@@ -224,7 +278,7 @@ dialog input, dialog select {
 dialog .acciones { justify-content: flex-end; }
 dialog .ayuda { margin: 0; font-size: 0.85rem; color: var(--suave); }
 
-.tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tipo { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .tipo label { display: block; }
 .tipo input { position: absolute; opacity: 0; }
 .tipo span {
@@ -238,4 +292,5 @@ dialog .ayuda { margin: 0; font-size: 0.85rem; color: var(--suave); }
 }
 .tipo input[value="gasto"]:checked + span { background: var(--gasto); border-color: var(--gasto); color: #fff; }
 .tipo input[value="ingreso"]:checked + span { background: var(--ingreso); border-color: var(--ingreso); color: #fff; }
+.tipo input[value="ahorro"]:checked + span { background: var(--marca); border-color: var(--marca); color: #fff; }
 .tipo input:focus-visible + span { outline: 2px solid var(--marca); outline-offset: 2px; }

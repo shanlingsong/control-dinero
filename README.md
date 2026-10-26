@@ -3,8 +3,11 @@
 App sencilla para llevar el control de **ingresos y gastos** desde el teléfono.
 
 - Registra cada movimiento con monto, categoría, nota y fecha.
-- Muestra ingresos, gastos y balance de cada mes.
+- Muestra ingresos, gastos y balance de cada mes, y cuánto dinero tienes en total.
 - Muestra en qué categorías se va el dinero.
+- **Metas de ahorro**: apartas dinero para algo y ves cuánto te falta.
+- **Racha**: cuenta los días seguidos que registras algo, para crear el hábito.
+- **Telegram**: recordatorio cada noche que no registres nada y resumen de tu semana cada domingo.
 - Se instala en el teléfono como una app y funciona sin internet.
 
 ## Dónde se guardan los datos
@@ -34,5 +37,6 @@ En la caja de arriba puedes escribir como hablas: *"me pagaron 3000 de la quince
 
 1. ✅ App web básica para el teléfono
 2. ✅ Guardar en la nube (Google Sheets) y registrar movimientos escribiendo en lenguaje normal con la API de Claude
-3. ⬜ Automatización con n8n (resumen semanal, bot de Telegram)
-4. ⬜ Skill propia para analizar mis finanzas con Claude
+3. ✅ Metas, racha y resumen semanal por Telegram (con Apps Script)
+4. ⬜ Automatizaciones más grandes con n8n
+5. ⬜ Skill propia para analizar mis finanzas con Claude

@@ -38,6 +38,31 @@ Cuando tengan la llave (empieza con `sk-ant-`):
 
 **La llave nunca va en la app ni en GitHub**: vive solo en tu servidor de Google, así nadie puede verla ni gastar tu saldo.
 
+## Parte 3: Telegram (recordatorios y resumen semanal)
+
+Con esto te llega:
+- **Cada noche a las 8 pm**, un recordatorio *solo si ese día no registraste nada*, para que no pierdas tu racha.
+- **Cada domingo a las 9 pm**, el resumen de tu semana: con cuánto empezaste, cuánto generaste, cuánto gastaste, cuánto apartaste para metas, con cuánto terminaste, en qué gastaste más, cómo van tus metas y tu racha.
+
+### 1. Crear tu bot
+1. En Telegram, busca **@BotFather** (tiene palomita azul) y ábrelo.
+2. Mándale `/newbot`.
+3. Te pide un **nombre** (por ejemplo `Mi Dinero`) y un **usuario** que termine en `bot` (por ejemplo `midinero_tunombre_bot`).
+4. Te responde con un **token**, algo como `123456789:ABCdef...`. **Es secreto**: quien lo tenga puede mandar mensajes como tu bot. No lo compartas.
+
+### 2. Dárselo al servidor
+1. En Apps Script → **⚙ Configuración del proyecto → Propiedades del script → Editar → Agregar propiedad**:
+   - Propiedad: `TELEGRAM_TOKEN` · Valor: el token.
+   - Guarda.
+
+### 3. Conectar
+1. En Telegram, abre **tu bot** (BotFather te da el link) y mándale cualquier mensaje, por ejemplo `hola`.
+2. En Apps Script, ve al editor de código (`< >`). Arriba, en la lista de funciones junto a **Ejecutar**, elige **`configurarTelegram`** y da clic en **Ejecutar**.
+3. Google te pedirá permisos nuevos (para programar los avisos automáticos). Acepta igual que la primera vez: *Configuración avanzada → Ir a mi dinero → Permitir*.
+4. Te debe llegar a Telegram: **"✅ Mi Dinero está conectado"**.
+
+¿Quieres ver cómo se ve el resumen sin esperar al domingo? Elige **`probarResumen`** y da clic en **Ejecutar**.
+
 ## Si cambias el código de `Code.gs`
 
 Cada vez que pegues una versión nueva: **Implementar → Administrar implementaciones → ✏ Editar → Versión: Nueva versión → Implementar**. La URL sigue siendo la misma.

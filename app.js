@@ -1,13 +1,20 @@
-// Mi Dinero: registra ingresos y gastos, los guarda en el teléfono y los sube a la nube (Google Sheets).
+// Mi Dinero: registra ingresos, gastos y ahorros, lleva tus metas y tu racha,
+// y lo guarda todo en el teléfono y en la nube (Google Sheets).
 
 // Categorías disponibles para cada tipo de movimiento. Puedes agregar o quitar las que quieras.
 const CATEGORIAS = {
   gasto: ['Comida', 'Transporte', 'Casa', 'Servicios', 'Salud', 'Diversión', 'Ropa', 'Otros'],
-  ingreso: ['Sueldo', 'Ventas', 'Negocio', 'Regalo', 'Otros'],
+  ingreso: ['Sueldo', 'Ventas', 'Negocio', 'Regalo', 'Saldo inicial', 'Otros'],
 };
+// "Saldo inicial" es el dinero que ya tenías al empezar: cuenta para tu total, pero no como ingreso del mes.
+const SALDO_INICIAL = 'Saldo inicial';
 
 // Nombres con los que se guardan los datos en el navegador (localStorage).
-const CLAVE = 'mi-dinero:movimientos';
+const CLAVES = {
+  movimientos: 'mi-dinero:movimientos',
+  metas: 'mi-dinero:metas',
+  dias: 'mi-dinero:dias', // días marcados con "hoy no tuve movimientos"
+};
 const CLAVE_NUBE = 'mi-dinero:nube';
 const CLAVE_PENDIENTES = 'mi-dinero:pendientes';
 const CLAVE_IA = 'mi-dinero:ia';
@@ -15,7 +22,11 @@ const CLAVE_IA = 'mi-dinero:ia';
 const $ = (selector) => document.querySelector(selector);
 const dinero = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
-let movimientos = leer(CLAVE, []);
+const datos = {
+  movimientos: leer(CLAVES.movimientos, []),
+  metas: leer(CLAVES.metas, []),
+  dias: leer(CLAVES.dias, []),
+};
 let nube = leer(CLAVE_NUBE, null); // { url, clave } o null si no está conectada
 let pendientes = leer(CLAVE_PENDIENTES, []); // cambios que aún no se suben a la nube
 
@@ -33,9 +44,35 @@ function escribir(clave, valor) {
   localStorage.setItem(clave, JSON.stringify(valor));
 }
 
-// Fecha de hoy como "AAAA-MM-DD" en la hora local.
+function guardarColeccion(nombre) {
+  escribir(CLAVES[nombre], datos[nombre]);
+}
+
+// ---------- Fechas ----------
+
+// Fecha como "AAAA-MM-DD" en la hora local.
+function fechaLocal(fecha) {
+  return fecha.toLocaleDateString('en-CA');
+}
+
 function hoy() {
-  return new Date().toLocaleDateString('en-CA');
+  return fechaLocal(new Date());
+}
+
+// Suma (o resta) días a una fecha "AAAA-MM-DD".
+function sumarDias(fecha, dias) {
+  const [a, m, d] = fecha.split('-').map(Number);
+  return fechaLocal(new Date(a, m - 1, d + dias));
+}
+
+function aFecha(texto) {
+  const [a, m, d] = texto.split('-').map(Number);
+  return new Date(a, m - 1, d);
+}
+
+// "2026-10-25" → "sáb, 25 oct"
+function fechaBonita(fecha) {
+  return aFecha(fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 // ---------- Nube ----------
@@ -46,9 +83,9 @@ async function llamarNube(peticion) {
     method: 'POST',
     body: JSON.stringify({ ...peticion, clave: nube.clave }),
   });
-  const datos = await respuesta.json();
-  if (datos.error) throw new Error(datos.error);
-  return datos;
+  const resultado = await respuesta.json();
+  if (resultado.error) throw new Error(resultado.error);
+  return resultado;
 }
 
 // Guarda un cambio para subirlo; si no hay internet, se queda en la fila y se reintenta después.
@@ -71,11 +108,15 @@ async function sincronizar() {
       pendientes.shift();
       escribir(CLAVE_PENDIENTES, pendientes);
     }
-    // 2. Descarga la lista completa: la nube es la fuente de verdad.
-    const { movimientos: deLaNube, ia } = await llamarNube({ accion: 'listar' });
-    movimientos = deLaNube;
-    escribir(CLAVE, movimientos);
-    escribir(CLAVE_IA, Boolean(ia));
+    // 2. Descarga todo: la nube es la fuente de verdad.
+    const respuesta = await llamarNube({ accion: 'listar' });
+    for (const nombre of Object.keys(CLAVES)) {
+      if (respuesta[nombre]) {
+        datos[nombre] = respuesta[nombre];
+        guardarColeccion(nombre);
+      }
+    }
+    escribir(CLAVE_IA, Boolean(respuesta.ia));
     mostrarIA();
     dibujar();
     mostrarEstado('☁ Guardado en la nube');
@@ -101,42 +142,172 @@ function mostrarEstado(texto, problema = false) {
 
 // ---------- Agregar y borrar ----------
 
-function agregarMovimiento(m) {
-  movimientos.push(m);
-  escribir(CLAVE, movimientos);
-  encolar({ accion: 'agregar', movimiento: m });
+function agregar(nombre, objeto) {
+  datos[nombre].push(objeto);
+  guardarColeccion(nombre);
+  encolar({ accion: 'agregar', coleccion: nombre, objeto });
   dibujar();
   sincronizar();
 }
 
-function borrarMovimiento(id) {
-  movimientos = movimientos.filter((m) => m.id !== id);
-  escribir(CLAVE, movimientos);
-  encolar({ accion: 'borrar', id });
+function borrar(nombre, id) {
+  datos[nombre] = datos[nombre].filter((x) => x.id !== id);
+  guardarColeccion(nombre);
+  encolar({ accion: 'borrar', coleccion: nombre, id });
   dibujar();
   sincronizar();
+}
+
+// ---------- Cálculos ----------
+
+const sumar = (lista) => lista.reduce((total, m) => total + m.monto, 0);
+
+// Lo que un movimiento cambia tu dinero total. Ahorrar no lo cambia: solo lo aparta para una meta.
+function efecto(m) {
+  if (m.tipo === 'ingreso') return m.monto;
+  if (m.tipo === 'gasto') return -m.monto;
+  return 0;
+}
+
+function ahorradoEn(meta) {
+  return sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro' && m.meta === meta.id));
+}
+
+// Un día cuenta para la racha si registraste algo ese día o marcaste "hoy no tuve movimientos".
+function diasActivos() {
+  const activos = new Set(datos.dias.map((d) => d.id));
+  for (const m of datos.movimientos) {
+    if (m.creado) activos.add(fechaLocal(new Date(m.creado)));
+  }
+  return activos;
+}
+
+function calcularRacha() {
+  const activos = diasActivos();
+  const hoyTexto = hoy();
+  const registradoHoy = activos.has(hoyTexto);
+
+  // La racha sigue viva si registraste ayer, aunque hoy todavía no.
+  let actual = 0;
+  for (let dia = registradoHoy ? hoyTexto : sumarDias(hoyTexto, -1); activos.has(dia); dia = sumarDias(dia, -1)) {
+    actual++;
+  }
+
+  let mejor = 0;
+  let seguidos = 0;
+  let anterior = null;
+  for (const dia of [...activos].sort()) {
+    seguidos = anterior && sumarDias(dia, -1) === anterior ? seguidos + 1 : 1;
+    mejor = Math.max(mejor, seguidos);
+    anterior = dia;
+  }
+
+  const semana = [6, 5, 4, 3, 2, 1, 0].map((atras) => {
+    const dia = sumarDias(hoyTexto, -atras);
+    return { dia, activo: activos.has(dia), esHoy: atras === 0 };
+  });
+
+  return { actual, mejor, registradoHoy, semana };
 }
 
 // ---------- Dibujar la pantalla ----------
 
 function dibujar() {
+  dibujarRacha();
+  dibujarTotal();
+  dibujarMetas();
+
   const mes = $('#mes').value; // "AAAA-MM"
-  const delMes = movimientos
+  const delMes = datos.movimientos
     .filter((m) => m.fecha.startsWith(mes))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.creado - a.creado);
 
-  const sumar = (tipo) => delMes.filter((m) => m.tipo === tipo).reduce((total, m) => total + m.monto, 0);
-  const ingresos = sumar('ingreso');
-  const gastos = sumar('gasto');
+  const ingresos = sumar(delMes.filter((m) => m.tipo === 'ingreso' && m.categoria !== SALDO_INICIAL));
+  const gastos = sumar(delMes.filter((m) => m.tipo === 'gasto'));
+  const apartado = sumar(delMes.filter((m) => m.tipo === 'ahorro'));
   const balance = ingresos - gastos;
 
   $('#total-ingresos').textContent = dinero.format(ingresos);
   $('#total-gastos').textContent = dinero.format(gastos);
   $('#balance').textContent = dinero.format(balance);
   $('#balance').classList.toggle('negativo', balance < 0);
+  $('#apartado-mes').textContent = apartado > 0 ? `Apartaste ${dinero.format(apartado)} para tus metas` : '';
 
   dibujarCategorias(delMes, gastos);
   dibujarLista(delMes);
+}
+
+function dibujarRacha() {
+  const { actual, mejor, registradoHoy, semana } = calcularRacha();
+
+  $('#racha-dias').textContent = `🔥 ${actual} ${actual === 1 ? 'día' : 'días'}`;
+  $('#racha-dias').classList.toggle('apagada', actual === 0);
+  $('#racha-mejor').textContent = mejor > 0 ? `Mejor racha: ${mejor}` : '';
+
+  $('#racha-semana').replaceChildren(
+    ...semana.map(({ dia, activo, esHoy }) => {
+      const li = document.createElement('li');
+      li.className = [activo && 'activo', esHoy && 'hoy'].filter(Boolean).join(' ');
+      li.textContent = aFecha(dia).toLocaleDateString('es-MX', { weekday: 'narrow' });
+      li.title = fechaBonita(dia);
+      return li;
+    })
+  );
+
+  let mensaje;
+  if (registradoHoy) mensaje = '✅ Ya registraste hoy. ¡Sigue así mañana!';
+  else if (actual > 0) mensaje = 'Registra algo hoy para no perder tu racha.';
+  else mensaje = 'Registra algo hoy para empezar tu racha.';
+  $('#racha-mensaje').textContent = mensaje;
+  $('#sin-movimientos').hidden = registradoHoy;
+}
+
+function dibujarTotal() {
+  const total = datos.movimientos.reduce((t, m) => t + efecto(m), 0);
+  const enMetas = sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro'));
+
+  $('#total-dinero').textContent = dinero.format(total);
+  $('#total-dinero').classList.toggle('negativo', total < 0);
+  $('#total-disponible').textContent = dinero.format(total - enMetas);
+  $('#total-metas').textContent = dinero.format(enMetas);
+  $('#pista-saldo').hidden = datos.movimientos.some((m) => m.categoria === SALDO_INICIAL);
+}
+
+function dibujarMetas() {
+  const ul = $('#metas');
+  ul.replaceChildren();
+  if (datos.metas.length === 0) {
+    ul.append(vacio('Crea una meta para empezar a ahorrar con un objetivo.'));
+    return;
+  }
+  for (const meta of datos.metas) {
+    const ahorrado = ahorradoEn(meta);
+    const avance = Math.min(100, Math.round((ahorrado / meta.objetivo) * 100));
+    const cumplida = ahorrado >= meta.objetivo;
+
+    const li = document.createElement('li');
+    li.className = 'tarjeta meta' + (cumplida ? ' cumplida' : '');
+    li.innerHTML = `
+      <div class="fila"><strong></strong><span class="meta-acciones"></span></div>
+      <div class="barra"><div style="width:${avance}%"></div></div>
+      <small></small>`;
+    li.querySelector('strong').textContent = (cumplida ? '🎉 ' : '🎯 ') + meta.nombre;
+    li.querySelector('small').textContent = cumplida
+      ? `¡Meta cumplida! ${dinero.format(ahorrado)} de ${dinero.format(meta.objetivo)}`
+      : `${dinero.format(ahorrado)} de ${dinero.format(meta.objetivo)} · ${avance}% · faltan ${dinero.format(meta.objetivo - ahorrado)}`;
+
+    const aportar = document.createElement('button');
+    aportar.type = 'button';
+    aportar.className = 'enlace';
+    aportar.textContent = 'Aportar';
+    aportar.addEventListener('click', () => abrirFormulario({ tipo: 'ahorro', meta: meta.id }));
+
+    li.querySelector('.meta-acciones').append(
+      aportar,
+      botonBorrar(`Meta borrada: ${meta.nombre}`, () => borrar('metas', meta.id))
+    );
+    ul.append(li);
+  }
 }
 
 function dibujarCategorias(delMes, totalGastos) {
@@ -167,42 +338,43 @@ function dibujarLista(delMes) {
   const ul = $('#lista');
   ul.replaceChildren();
   if (delMes.length === 0) {
-    ul.append(vacio('Aún no hay movimientos. Toca + o escribe arriba para agregar uno.'));
+    ul.append(vacio('Aún no hay movimientos este mes. Toca + para agregar uno.'));
     return;
   }
+  const signos = { gasto: '−', ingreso: '+', ahorro: '→ ' };
   for (const m of delMes) {
     const li = document.createElement('li');
     li.className = m.tipo;
 
     const info = document.createElement('div');
     const titulo = document.createElement('strong');
-    titulo.textContent = m.categoria;
+    titulo.textContent = m.tipo === 'ahorro' ? `🎯 ${m.categoria}` : m.categoria;
     const detalle = document.createElement('small');
     detalle.textContent = [fechaBonita(m.fecha), m.nota].filter(Boolean).join(' · ');
     info.append(titulo, detalle);
 
     const monto = document.createElement('span');
     monto.className = 'monto';
-    monto.textContent = (m.tipo === 'gasto' ? '−' : '+') + dinero.format(m.monto);
+    monto.textContent = signos[m.tipo] + dinero.format(m.monto);
 
-    li.append(info, monto, botonBorrar(m));
+    li.append(info, monto, botonBorrar(`Borrado: ${m.categoria} ${dinero.format(m.monto)}`, () => borrar('movimientos', m.id)));
     ul.append(li);
   }
 }
 
 // La × pide confirmación en el mismo botón: primer toque "¿Borrar?", segundo toque borra.
-function botonBorrar(m) {
+function botonBorrar(textoAviso, alBorrar) {
   const boton = document.createElement('button');
   boton.type = 'button';
   boton.className = 'borrar';
-  boton.setAttribute('aria-label', 'Borrar movimiento');
+  boton.setAttribute('aria-label', 'Borrar');
   boton.textContent = '×';
   let regresar;
   boton.addEventListener('click', () => {
     if (boton.classList.contains('confirmar')) {
       clearTimeout(regresar);
-      borrarMovimiento(m.id);
-      avisar(`Borrado: ${m.categoria} ${dinero.format(m.monto)}`);
+      alBorrar();
+      avisar(textoAviso);
       return;
     }
     boton.classList.add('confirmar');
@@ -222,12 +394,6 @@ function vacio(texto) {
   return li;
 }
 
-// "2026-10-25" → "sáb, 25 oct"
-function fechaBonita(fecha) {
-  const [a, m, d] = fecha.split('-').map(Number);
-  return new Date(a, m - 1, d).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
 // Mensaje corto que aparece abajo unos segundos.
 let ocultarAviso;
 function avisar(texto) {
@@ -238,30 +404,36 @@ function avisar(texto) {
   ocultarAviso = setTimeout(() => (aviso.hidden = true), 3500);
 }
 
-// ---------- Formulario ----------
+// ---------- Formulario de movimientos ----------
 
+// Para ahorros, la "categoría" es la meta a la que va el dinero.
 function llenarCategorias() {
   const tipo = $('#form').tipo.value;
-  $('#categoria').replaceChildren(...CATEGORIAS[tipo].map((c) => new Option(c, c)));
+  const select = $('#categoria');
+  $('#etiqueta-categoria').textContent = tipo === 'ahorro' ? 'Meta' : 'Categoría';
+  if (tipo === 'ahorro') {
+    select.replaceChildren(...datos.metas.map((meta) => new Option(meta.nombre, meta.id)));
+    if (datos.metas.length === 0) select.append(new Option('Primero crea una meta', ''));
+  } else {
+    select.replaceChildren(...CATEGORIAS[tipo].map((c) => new Option(c, c)));
+  }
 }
 
-// Abre el formulario; si viene un movimiento (de la IA), lo deja prellenado para revisarlo.
-function abrirFormulario(prellenado) {
+// Abre el formulario; si viene algo prellenado (de la IA o de "Aportar"), lo deja listo para revisar.
+function abrirFormulario(prellenado = {}) {
   const form = $('#form');
   form.reset();
-  form.fecha.value = hoy();
-  if (prellenado) {
-    form.tipo.value = prellenado.tipo;
-    llenarCategorias();
-    form.monto.value = prellenado.monto;
-    form.categoria.value = CATEGORIAS[prellenado.tipo].includes(prellenado.categoria) ? prellenado.categoria : 'Otros';
-    form.nota.value = prellenado.nota;
-    form.fecha.value = prellenado.fecha;
-  } else {
-    llenarCategorias();
+  form.tipo.value = prellenado.tipo || 'gasto';
+  llenarCategorias();
+  form.fecha.value = prellenado.fecha || hoy();
+  if (prellenado.monto) form.monto.value = prellenado.monto;
+  if (prellenado.nota) form.nota.value = prellenado.nota;
+  if (prellenado.meta) form.categoria.value = prellenado.meta;
+  if (prellenado.categoria) {
+    form.categoria.value = CATEGORIAS[form.tipo.value]?.includes(prellenado.categoria) ? prellenado.categoria : 'Otros';
   }
   $('#dialogo').showModal();
-  if (!prellenado) form.monto.focus();
+  if (!prellenado.monto) form.monto.focus();
 }
 
 $('#abrir-form').addEventListener('click', () => abrirFormulario());
@@ -274,14 +446,21 @@ for (const radio of document.querySelectorAll('input[name="tipo"]')) {
 $('#form').addEventListener('submit', (evento) => {
   evento.preventDefault();
   const form = evento.target;
-  agregarMovimiento({
+  const tipo = form.tipo.value;
+  const meta = tipo === 'ahorro' ? datos.metas.find((x) => x.id === form.categoria.value) : null;
+  if (tipo === 'ahorro' && !meta) {
+    avisar('Primero crea una meta en "Mis metas"');
+    return;
+  }
+  agregar('movimientos', {
     id: crypto.randomUUID(),
-    tipo: form.tipo.value,
+    tipo,
     monto: Math.round(Number(form.monto.value) * 100) / 100,
-    categoria: form.categoria.value,
+    categoria: meta ? meta.nombre : form.categoria.value,
     nota: form.nota.value.trim(),
     fecha: form.fecha.value,
     creado: Date.now(),
+    meta: meta ? meta.id : '',
   });
   $('#mes').value = form.fecha.value.slice(0, 7); // muestra el mes del movimiento nuevo
   $('#dialogo').close();
@@ -289,6 +468,35 @@ $('#form').addEventListener('submit', (evento) => {
 });
 
 $('#mes').addEventListener('change', dibujar);
+
+// ---------- Racha ----------
+
+$('#sin-movimientos').addEventListener('click', () => {
+  agregar('dias', { id: hoy(), creado: Date.now() });
+  avisar('🔥 ¡Día registrado! Tu racha sigue.');
+});
+
+// ---------- Metas ----------
+
+$('#nueva-meta').addEventListener('click', () => {
+  $('#form-meta').reset();
+  $('#dialogo-meta').showModal();
+});
+
+$('#cancelar-meta').addEventListener('click', () => $('#dialogo-meta').close());
+
+$('#form-meta').addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const form = evento.target;
+  agregar('metas', {
+    id: crypto.randomUUID(),
+    nombre: form.nombre.value.trim(),
+    objetivo: Math.round(Number(form.objetivo.value) * 100) / 100,
+    creado: Date.now(),
+  });
+  $('#dialogo-meta').close();
+  avisar('🎯 Meta creada. Toca "Aportar" cuando apartes dinero para ella.');
+});
 
 // ---------- IA: escribir en lenguaje normal ----------
 
@@ -300,10 +508,6 @@ function mostrarIA() {
 $('#form-ia').addEventListener('submit', async (evento) => {
   evento.preventDefault();
   const form = evento.target;
-  if (!nube) {
-    avisar('Primero conecta la nube con el botón ⚙');
-    return;
-  }
   const boton = form.querySelector('button');
   boton.disabled = true;
   boton.textContent = 'Pensando…';
@@ -352,7 +556,9 @@ $('#form-ajustes').addEventListener('submit', (evento) => {
   }
   // La primera vez, sube lo que ya había en el teléfono.
   if (!estabaConectada) {
-    for (const m of movimientos) encolar({ accion: 'agregar', movimiento: m });
+    for (const nombre of Object.keys(CLAVES)) {
+      for (const objeto of datos[nombre]) encolar({ accion: 'agregar', coleccion: nombre, objeto });
+    }
   }
   sincronizar();
 });
@@ -360,7 +566,7 @@ $('#form-ajustes').addEventListener('submit', (evento) => {
 // ---------- Respaldo ----------
 
 $('#exportar').addEventListener('click', () => {
-  const archivo = new Blob([JSON.stringify(movimientos, null, 2)], { type: 'application/json' });
+  const archivo = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
   const enlace = document.createElement('a');
   enlace.href = URL.createObjectURL(archivo);
   enlace.download = `mi-dinero-${hoy()}.json`;
@@ -373,16 +579,21 @@ $('#importar').addEventListener('change', async (evento) => {
   evento.target.value = '';
   if (!archivo) return;
   try {
-    const datos = JSON.parse(await archivo.text());
-    if (!Array.isArray(datos)) throw new Error('formato');
-    const existentes = new Set(movimientos.map((m) => m.id));
-    const nuevos = datos.filter((m) => m.id && !existentes.has(m.id));
-    movimientos.push(...nuevos);
-    escribir(CLAVE, movimientos);
-    for (const m of nuevos) encolar({ accion: 'agregar', movimiento: m });
+    let respaldo = JSON.parse(await archivo.text());
+    if (Array.isArray(respaldo)) respaldo = { movimientos: respaldo }; // respaldos de la primera versión
+    let agregados = 0;
+    for (const nombre of Object.keys(CLAVES)) {
+      if (!Array.isArray(respaldo[nombre])) continue;
+      const existentes = new Set(datos[nombre].map((x) => x.id));
+      const nuevos = respaldo[nombre].filter((x) => x.id && !existentes.has(x.id));
+      datos[nombre].push(...nuevos);
+      guardarColeccion(nombre);
+      for (const objeto of nuevos) encolar({ accion: 'agregar', coleccion: nombre, objeto });
+      agregados += nuevos.length;
+    }
     dibujar();
     sincronizar();
-    avisar(`Se agregaron ${nuevos.length} movimientos del respaldo`);
+    avisar(`Se agregaron ${agregados} registros del respaldo`);
   } catch {
     avisar('Ese archivo no parece un respaldo de Mi Dinero.');
   }
@@ -399,9 +610,11 @@ if (nube) {
   mostrarEstado('Solo en este teléfono. Toca ⚙ para guardar en la nube.');
 }
 
-// Al volver a abrir la app, trae lo más nuevo de la nube.
+// Al volver a abrir la app, trae lo más nuevo de la nube y actualiza la racha.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') sincronizar();
+  if (document.visibilityState !== 'visible') return;
+  dibujar();
+  sincronizar();
 });
 window.addEventListener('online', sincronizar);
 
