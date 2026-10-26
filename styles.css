@@ -584,6 +584,40 @@ main {
 .tecla:active { background: var(--tarjeta-2); }
 
 .perfil { display: flex; align-items: center; gap: 14px; }
+
+/* Recorte de la foto */
+.recorte {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  margin: 4px auto;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+  cursor: grab;
+}
+.recorte:active { cursor: grabbing; }
+.recorte img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+}
+/* Todo lo que queda fuera del círculo se oscurece */
+.recorte::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--acento);
+  box-shadow: 0 0 0 200px rgb(11 15 23 / 0.65);
+  pointer-events: none;
+}
+.zoom { display: flex; align-items: center; gap: 10px; color: var(--suave); font-size: 1.2rem; }
+.zoom input { flex: 1; accent-color: var(--acento); }
 .perfil-acciones { display: grid; gap: 4px; justify-items: start; }
 
 /* ---------- Aviso con "Deshacer" ---------- */

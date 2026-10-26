@@ -1342,23 +1342,104 @@ $('#nombre').addEventListener('input', (e) => {
   guardarPerfil();
 });
 
-// La foto se achica a 160 px para que quepa en el teléfono sin ocupar mucho.
+// ---------- Recorte de la foto ----------
+
+// La foto se acomoda dentro de un cuadro; "escala" es cuánto se agranda y (x, y) dónde queda su esquina.
+const recorte = { imagen: null, base: 1, escala: 1, x: 0, y: 0, dedos: new Map() };
+const ladoRecorte = () => $('#recorte').clientWidth;
+
+// No deja que la foto se salga: siempre cubre todo el cuadro.
+function acomodarFoto() {
+  const lado = ladoRecorte();
+  const ancho = recorte.imagen.naturalWidth * recorte.escala;
+  const alto = recorte.imagen.naturalHeight * recorte.escala;
+  recorte.x = Math.min(0, Math.max(lado - ancho, recorte.x));
+  recorte.y = Math.min(0, Math.max(lado - alto, recorte.y));
+  Object.assign($('#recorte-img').style, { width: ancho + 'px', height: alto + 'px', transform: `translate(${recorte.x}px, ${recorte.y}px)` });
+}
+
+// Acerca o aleja manteniendo fijo el punto (px, py) del cuadro.
+function acercar(zoom, px = ladoRecorte() / 2, py = ladoRecorte() / 2) {
+  zoom = Math.min(4, Math.max(1, zoom));
+  const nueva = recorte.base * zoom;
+  recorte.x = px - ((px - recorte.x) / recorte.escala) * nueva;
+  recorte.y = py - ((py - recorte.y) / recorte.escala) * nueva;
+  recorte.escala = nueva;
+  $('#zoom').value = zoom;
+  acomodarFoto();
+}
+
 $('#foto').addEventListener('change', (evento) => {
   const archivo = evento.target.files[0];
   evento.target.value = '';
   if (!archivo) return;
   const imagen = new Image();
   imagen.onload = () => {
-    const lado = 160;
-    const lienzoFoto = document.createElement('canvas');
-    lienzoFoto.width = lienzoFoto.height = lado;
-    const menor = Math.min(imagen.width, imagen.height);
-    lienzoFoto.getContext('2d').drawImage(imagen, (imagen.width - menor) / 2, (imagen.height - menor) / 2, menor, menor, 0, 0, lado, lado);
-    perfil.foto = lienzoFoto.toDataURL('image/jpeg', 0.85);
-    URL.revokeObjectURL(imagen.src);
-    guardarPerfil();
+    recorte.imagen = imagen;
+    $('#recorte-img').src = imagen.src;
+    abrirHoja($('#hoja-foto'));
+    // Empieza centrada y cubriendo todo el cuadro.
+    const lado = ladoRecorte();
+    recorte.base = recorte.escala = lado / Math.min(imagen.naturalWidth, imagen.naturalHeight);
+    recorte.x = (lado - imagen.naturalWidth * recorte.escala) / 2;
+    recorte.y = (lado - imagen.naturalHeight * recorte.escala) / 2;
+    $('#zoom').value = 1;
+    acomodarFoto();
   };
   imagen.src = URL.createObjectURL(archivo);
+});
+
+$('#zoom').addEventListener('input', (e) => acercar(Number(e.target.value)));
+
+const cuadro = $('#recorte');
+cuadro.addEventListener('pointerdown', (e) => {
+  cuadro.setPointerCapture(e.pointerId);
+  recorte.dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+});
+cuadro.addEventListener('pointermove', (e) => {
+  const antes = recorte.dedos.get(e.pointerId);
+  if (!antes) return;
+  const caja = cuadro.getBoundingClientRect();
+  if (recorte.dedos.size === 1) {
+    // Un dedo: mover
+    recorte.x += e.clientX - antes.x;
+    recorte.y += e.clientY - antes.y;
+    acomodarFoto();
+  } else {
+    // Dos dedos: pellizcar para acercar
+    const [otro] = [...recorte.dedos].filter(([id]) => id !== e.pointerId).map(([, p]) => p);
+    const distancia = (a) => Math.hypot(a.x - otro.x, a.y - otro.y);
+    const ahora = { x: e.clientX, y: e.clientY };
+    const factor = distancia(ahora) / (distancia(antes) || 1);
+    acercar((recorte.escala / recorte.base) * factor, (ahora.x + otro.x) / 2 - caja.left, (ahora.y + otro.y) / 2 - caja.top);
+  }
+  recorte.dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+});
+for (const tipo of ['pointerup', 'pointercancel']) {
+  cuadro.addEventListener(tipo, (e) => recorte.dedos.delete(e.pointerId));
+}
+cuadro.addEventListener(
+  'wheel',
+  (e) => {
+    e.preventDefault();
+    const caja = cuadro.getBoundingClientRect();
+    acercar((recorte.escala / recorte.base) * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX - caja.left, e.clientY - caja.top);
+  },
+  { passive: false }
+);
+
+// Guarda solo lo que se ve en el cuadro, achicado a 160 px para que no ocupe mucho.
+$('#form-foto').addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const salida = 160;
+  const lienzoFoto = document.createElement('canvas');
+  lienzoFoto.width = lienzoFoto.height = salida;
+  const lado = ladoRecorte() / recorte.escala;
+  lienzoFoto.getContext('2d').drawImage(recorte.imagen, -recorte.x / recorte.escala, -recorte.y / recorte.escala, lado, lado, 0, 0, salida, salida);
+  perfil.foto = lienzoFoto.toDataURL('image/jpeg', 0.85);
+  URL.revokeObjectURL(recorte.imagen.src);
+  guardarPerfil();
+  cerrarHoja($('#hoja-foto'));
 });
 
 $('#quitar-foto').addEventListener('click', () => {

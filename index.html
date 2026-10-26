@@ -268,6 +268,25 @@
     </form>
   </dialog>
 
+  <!-- Hoja: acomodar la foto de perfil -->
+  <dialog id="hoja-foto" class="hoja">
+    <form id="form-foto">
+      <div class="agarradera"></div>
+      <h2>Acomoda tu foto</h2>
+      <p class="suave pequeno">Arrástrala para moverla. Acércala con la barra o pellizcando con dos dedos.</p>
+      <div id="recorte" class="recorte"><img id="recorte-img" alt="Tu foto"></div>
+      <div class="zoom">
+        <i class="ti ti-zoom-out" aria-hidden="true"></i>
+        <input type="range" id="zoom" min="1" max="4" step="0.01" value="1" aria-label="Acercar">
+        <i class="ti ti-zoom-in" aria-hidden="true"></i>
+      </div>
+      <div class="acciones">
+        <button type="button" class="boton-secundario" data-cierra>Cancelar</button>
+        <button type="submit" class="boton-grande">Usar foto</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="app.js"></script>
