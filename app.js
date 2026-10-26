@@ -1505,17 +1505,41 @@ $('#importar').addEventListener('change', async (evento) => {
   }
 });
 
+// ---------- Pantalla de carga ----------
+
+const inicioCarga = performance.now();
+const progresoCarga = (porcentaje) => ($('#carga-progreso').style.width = porcentaje + '%');
+
+// Se queda al menos 1.6 s para que se vea la animación, y se quita al terminar de cargar.
+function terminarCarga() {
+  const carga = $('#carga');
+  if (!carga || carga.dataset.terminando) return;
+  carga.dataset.terminando = '1';
+  progresoCarga(100);
+  const espera = Math.max(0, 1600 - (performance.now() - inicioCarga));
+  setTimeout(() => {
+    carga.classList.add('oculta');
+    mostrarVista(leer('mi-dinero:vista', 'dinero')); // las animaciones de la sección arrancan al quitarse la carga
+    setTimeout(() => carga.remove(), 500);
+  }, espera + 350);
+}
+
 // ---------- Arranque ----------
 
+requestAnimationFrame(() => progresoCarga(25));
 $('#mes').value = hoy().slice(0, 7);
 dibujar();
 mostrarIA();
 mostrarVista(leer('mi-dinero:vista', 'dinero'));
+progresoCarga(55);
 if (nube) {
-  sincronizar();
+  setTimeout(() => progresoCarga(80), 400);
+  Promise.resolve(sincronizar()).finally(terminarCarga);
 } else {
   mostrarEstado('ti-device-mobile', 'Solo en este teléfono. Conecta la nube en ajustes.');
+  terminarCarga();
 }
+setTimeout(terminarCarga, 5000); // por si la nube tarda mucho, no te deja esperando
 
 // Al volver a abrir la app, trae lo más nuevo de la nube y actualiza la racha.
 document.addEventListener('visibilitychange', () => {

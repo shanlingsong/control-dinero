@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent;overflow:hidden}canvas{display:block}</style></head>
+<body>
+<!-- Genera las imágenes de la app con una captura de Edge:
+     ?que=mascota&lado=600  → la mascota sin fondo, centrada en un cuadro transparente
+     ?que=icono&lado=512    → el ícono de la app -->
+<canvas id="c"></canvas>
+<script src="recorte.js"></script>
+<script>
+  const p = new URLSearchParams(location.search);
+  const lado = Number(p.get('lado') || 512);
+  const imagen = new Image();
+  imagen.onload = () => {
+    const recorte = sinFondo(imagen);
+    const c = document.getElementById('c');
+    c.width = c.height = lado;
+    c.style.width = c.style.height = lado + 'px';
+    if (p.get('que') === 'icono') {
+      c.getContext('2d').drawImage(icono(recorte, lado), 0, 0);
+      return;
+    }
+    // Recorta lo transparente y centra la mascota.
+    const g = recorte.getContext('2d'), d = g.getImageData(0, 0, recorte.width, recorte.height).data;
+    let x0 = recorte.width, y0 = recorte.height, x1 = 0, y1 = 0;
+    for (let y = 0; y < recorte.height; y++) for (let x = 0; x < recorte.width; x++) {
+      if (d[(y * recorte.width + x) * 4 + 3] > 10) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    }
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, escala = (lado * 0.98) / Math.max(w, h);
+    const cg = c.getContext('2d');
+    cg.imageSmoothingQuality = 'high';
+    cg.drawImage(recorte, x0, y0, w, h, (lado - w * escala) / 2, (lado - h * escala) / 2, w * escala, h * escala);
+  };
+  imagen.src = p.get('src') || 'opcion-4.webp';
+</script>
+</body></html>

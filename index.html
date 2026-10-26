@@ -3,12 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Mi Dinero</title>
+  <title>Kashiki</title>
+  <meta name="description" content="Kashiki: respira, ahorra, crece. Tu dinero, tus metas y tu racha.">
   <meta name="theme-color" content="#0B0F17">
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preload" href="marca/kashiki.png" as="image">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kashiki">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,6 +20,15 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Pantalla de carga: se quita sola cuando tus datos están listos -->
+  <div id="carga" class="carga" role="status" aria-label="Cargando Kashiki">
+    <div class="carga-halo"></div>
+    <img class="carga-mascota" src="marca/kashiki.png" alt="">
+    <div class="carga-nombre">Kashi<span>ki</span></div>
+    <p class="carga-lema">Respira. Ahorra. Crece.</p>
+    <div class="carga-barra"><div id="carga-progreso"></div></div>
+  </div>
+
   <header class="encabezado">
     <button type="button" id="avatar" class="avatar" aria-label="Tu perfil"></button>
     <div class="saludo">

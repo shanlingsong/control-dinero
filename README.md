@@ -1,6 +1,10 @@
-# Mi Dinero
+<p align="center"><img src="marca/kashiki.png" width="220" alt="Kashiki, un changuito meditando sobre una moneda"></p>
 
-App sencilla para llevar el control de **ingresos y gastos** desde el teléfono.
+# Kashiki
+
+**Respira. Ahorra. Crece.**
+
+App para llevar el control de **ingresos y gastos** desde el teléfono.
 
 - Registra cada movimiento con monto, categoría, nota y fecha.
 - Muestra ingresos, gastos y balance de cada mes, y cuánto dinero tienes en total.
