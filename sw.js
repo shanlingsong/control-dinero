@@ -1,7 +1,7 @@
 // Service worker: guarda una copia de la app para que abra aunque no haya internet.
 // Primero intenta descargar la versión más nueva; si no hay conexión, usa la copia guardada.
 
-const CACHE = 'mi-dinero-v4';
+const CACHE = 'mi-dinero-v5';
 const ARCHIVOS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (evento) => {

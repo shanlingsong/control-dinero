@@ -13,88 +13,115 @@
 </head>
 <body>
   <header>
-    <h1>Mi Dinero</h1>
+    <h1 id="titulo">Mi Dinero</h1>
     <div class="header-derecha">
       <input type="month" id="mes" aria-label="Mes a mostrar">
-      <button type="button" id="abrir-ajustes" class="icono" aria-label="Ajustes de la nube">⚙</button>
+      <button type="button" id="abrir-ajustes" class="icono" aria-label="Ajustes">⚙</button>
     </div>
   </header>
 
   <main>
     <p id="estado" class="estado"></p>
 
-    <!-- Escribir un movimiento en lenguaje normal; la IA lo convierte -->
-    <form id="form-ia" class="ia" hidden>
-      <input type="text" name="texto" placeholder="✨ Escribe: gasté 150 en tacos ayer" autocomplete="off" required>
-      <button type="submit">Listo</button>
-    </form>
+    <!-- ========== Sección: Dinero ========== -->
+    <section id="vista-dinero" class="vista" data-titulo="Mi Dinero">
+      <!-- Escribir un movimiento en lenguaje normal; la IA lo convierte -->
+      <form id="form-ia" class="ia" hidden>
+        <input type="text" name="texto" placeholder="✨ Escribe: gasté 150 en tacos ayer" autocomplete="off" required>
+        <button type="submit">Listo</button>
+      </form>
 
-    <!-- Racha: días seguidos registrando -->
-    <section class="tarjeta racha">
-      <div class="racha-arriba">
-        <div>
-          <strong id="racha-dias">🔥 0 días</strong>
-          <span id="racha-mejor" class="suave"></span>
+      <div class="resumen">
+        <div class="tarjeta ingreso"><span>Ingresos</span><strong id="total-ingresos">$0.00</strong></div>
+        <div class="tarjeta gasto"><span>Gastos</span><strong id="total-gastos">$0.00</strong></div>
+        <div class="tarjeta balance">
+          <span>Balance del mes</span><strong id="balance">$0.00</strong>
+          <small id="apartado-mes" class="suave"></small>
         </div>
-        <ol id="racha-semana" class="racha-semana" aria-label="Últimos 7 días"></ol>
       </div>
-      <p id="racha-mensaje" class="racha-mensaje"></p>
-      <button type="button" id="sin-movimientos" class="secundario" hidden>Hoy no tuve movimientos ✓</button>
+
+      <button type="button" class="agregar-grande" data-abre="movimiento">+ Agregar gasto o ingreso</button>
+
+      <div>
+        <h2>Movimientos del mes</h2>
+        <ul id="lista" class="lista"></ul>
+      </div>
+
+      <div>
+        <h2>¿En qué gasto?</h2>
+        <ul id="categorias" class="categorias"></ul>
+      </div>
     </section>
 
-    <!-- Todo tu dinero, sin importar el mes -->
-    <section class="tarjeta total">
-      <span>Mi dinero hoy</span>
-      <strong id="total-dinero">$0.00</strong>
-      <div class="total-detalle">
-        <span>Disponible <b id="total-disponible">$0.00</b></span>
-        <span>En metas <b id="total-metas">$0.00</b></span>
+    <!-- ========== Sección: Metas ========== -->
+    <section id="vista-metas" class="vista" data-titulo="Metas" hidden>
+      <div class="tarjeta total">
+        <span>Mi dinero hoy</span>
+        <strong id="total-dinero">$0.00</strong>
+        <div class="total-detalle">
+          <span>Disponible <b id="total-disponible">$0.00</b></span>
+          <span>En metas <b id="total-metas">$0.00</b></span>
+        </div>
+        <p id="pista-saldo" class="pista" hidden>¿Ya tenías dinero antes de usar la app? Regístralo en <b>Dinero</b> → Ingreso → <b>Saldo inicial</b>.</p>
       </div>
-      <p id="pista-saldo" class="pista" hidden>¿Ya tenías dinero antes de usar la app? Regístralo con <b>+</b> → Ingreso → <b>Saldo inicial</b>.</p>
-    </section>
 
-    <!-- Metas de ahorro -->
-    <section>
-      <div class="titulo-seccion">
+      <button type="button" class="agregar-grande" data-abre="meta">+ Nueva meta</button>
+
+      <div>
         <h2>Mis metas</h2>
-        <button type="button" id="nueva-meta" class="enlace">+ Nueva meta</button>
-      </div>
-      <ul id="metas" class="metas"></ul>
-    </section>
-
-    <!-- Resumen del mes elegido -->
-    <section class="resumen">
-      <div class="tarjeta ingreso"><span>Ingresos del mes</span><strong id="total-ingresos">$0.00</strong></div>
-      <div class="tarjeta gasto"><span>Gastos del mes</span><strong id="total-gastos">$0.00</strong></div>
-      <div class="tarjeta balance">
-        <span>Balance del mes</span><strong id="balance">$0.00</strong>
-        <small id="apartado-mes" class="suave"></small>
+        <ul id="metas" class="metas"></ul>
       </div>
     </section>
 
-    <section>
-      <h2>¿En qué gasto?</h2>
-      <ul id="categorias" class="categorias"></ul>
+    <!-- ========== Sección: Racha ========== -->
+    <section id="vista-racha" class="vista" data-titulo="Racha" hidden>
+      <div class="tarjeta racha">
+        <strong id="racha-dias">🔥 0 días</strong>
+        <span id="racha-mejor" class="suave"></span>
+        <ol id="racha-semana" class="racha-semana" aria-label="Últimos 7 días"></ol>
+        <p id="racha-mensaje" class="racha-mensaje"></p>
+        <button type="button" id="sin-movimientos" class="secundario" hidden>Hoy no tuve movimientos ✓</button>
+      </div>
+
+      <div class="tarjeta">
+        <div class="fila-titulo">
+          <h2 id="calendario-titulo">Este mes</h2>
+          <span id="calendario-cuenta" class="suave"></span>
+        </div>
+        <div class="calendario-dias suave" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+        <ol id="calendario" class="calendario"></ol>
+      </div>
+
+      <p class="ayuda-racha">Un día cuenta si registras cualquier cosa: un gasto, un ingreso, un ahorro, un pago… o si tocas <b>"Hoy no tuve movimientos"</b>.</p>
     </section>
 
-    <section>
-      <h2>Movimientos</h2>
-      <ul id="lista" class="lista"></ul>
-    </section>
+    <!-- ========== Sección: Pagos pendientes ========== -->
+    <section id="vista-pagos" class="vista" data-titulo="Pagos pendientes" hidden>
+      <div class="resumen">
+        <div class="tarjeta gasto"><span>Yo debo</span><strong id="total-debo">$0.00</strong></div>
+        <div class="tarjeta ingreso"><span>Me deben</span><strong id="total-me-deben">$0.00</strong></div>
+      </div>
 
-    <section class="respaldo">
-      <h2>Respaldo</h2>
-      <p>Un archivo con tus movimientos, metas y racha. Al restaurarlo se agregan los que falten.</p>
-      <div class="acciones">
-        <button type="button" id="exportar">Descargar respaldo</button>
-        <label class="boton secundario">Restaurar respaldo
-          <input type="file" id="importar" accept="application/json,.json" hidden>
-        </label>
+      <button type="button" class="agregar-grande" data-abre="pago">+ Anotar pago pendiente</button>
+
+      <div>
+        <h2>Yo debo</h2>
+        <ul id="lista-debo" class="lista pagos"></ul>
+      </div>
+      <div>
+        <h2>Me deben</h2>
+        <ul id="lista-me-deben" class="lista pagos"></ul>
       </div>
     </section>
   </main>
 
-  <button type="button" id="abrir-form" class="flotante" aria-label="Agregar movimiento">+</button>
+  <!-- Barra de secciones -->
+  <nav class="barra-secciones" aria-label="Secciones">
+    <button type="button" data-vista="dinero" aria-current="page"><span class="emoji">💵</span>Dinero</button>
+    <button type="button" data-vista="metas"><span class="emoji">🎯</span>Metas</button>
+    <button type="button" data-vista="racha"><span class="emoji">🔥</span>Racha<b id="punto-racha" class="punto" hidden></b></button>
+    <button type="button" data-vista="pagos"><span class="emoji">📌</span>Pagos<b id="punto-pagos" class="punto" hidden></b></button>
+  </nav>
 
   <!-- Formulario para agregar un movimiento -->
   <dialog id="dialogo">
@@ -118,7 +145,7 @@
         <input type="date" name="fecha" required>
       </label>
       <div class="acciones">
-        <button type="button" id="cancelar" class="secundario">Cancelar</button>
+        <button type="button" class="secundario" data-cierra>Cancelar</button>
         <button type="submit">Guardar</button>
       </div>
     </form>
@@ -135,13 +162,40 @@
         <input type="number" name="objetivo" inputmode="decimal" step="0.01" min="1" placeholder="0.00" required>
       </label>
       <div class="acciones">
-        <button type="button" id="cancelar-meta" class="secundario">Cancelar</button>
+        <button type="button" class="secundario" data-cierra>Cancelar</button>
         <button type="submit">Crear meta</button>
       </div>
     </form>
   </dialog>
 
-  <!-- Conexión con la nube (Google Sheets) -->
+  <!-- Nuevo pago pendiente -->
+  <dialog id="dialogo-pago">
+    <form id="form-pago">
+      <h2>Pago pendiente</h2>
+      <div class="tipo dos">
+        <label><input type="radio" name="tipo" value="debo" checked><span>Yo debo</span></label>
+        <label><input type="radio" name="tipo" value="me-deben"><span>Me deben</span></label>
+      </div>
+      <label><span id="etiqueta-persona">¿A quién le debes?</span>
+        <input type="text" name="persona" placeholder="Ej. Darío" maxlength="40" required>
+      </label>
+      <label>Monto
+        <input type="number" name="monto" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
+      </label>
+      <label>¿Para cuándo?
+        <input type="date" name="fecha" required>
+      </label>
+      <label>Nota
+        <input type="text" name="nota" placeholder="Opcional, ej. lo que me prestó para el cine" maxlength="80">
+      </label>
+      <div class="acciones">
+        <button type="button" class="secundario" data-cierra>Cancelar</button>
+        <button type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ajustes: nube y respaldo -->
   <dialog id="dialogo-ajustes">
     <form id="form-ajustes">
       <h2>Guardar en la nube</h2>
@@ -153,8 +207,17 @@
         <input type="password" name="clave" autocomplete="off">
       </label>
       <div class="acciones">
-        <button type="button" id="cancelar-ajustes" class="secundario">Cancelar</button>
+        <button type="button" class="secundario" data-cierra>Cancelar</button>
         <button type="submit">Guardar</button>
+      </div>
+
+      <h2 class="separado">Respaldo</h2>
+      <p class="ayuda">Un archivo con todo: movimientos, metas, racha y pagos. Al restaurarlo se agregan los que falten.</p>
+      <div class="acciones izquierda">
+        <button type="button" id="exportar" class="secundario">Descargar respaldo</button>
+        <label class="boton secundario">Restaurar respaldo
+          <input type="file" id="importar" accept="application/json,.json" hidden>
+        </label>
       </div>
     </form>
   </dialog>

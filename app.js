@@ -14,6 +14,7 @@ const CLAVES = {
   movimientos: 'mi-dinero:movimientos',
   metas: 'mi-dinero:metas',
   dias: 'mi-dinero:dias', // días marcados con "hoy no tuve movimientos"
+  pendientes: 'mi-dinero:pagos', // pagos que debo o que me deben
 };
 const CLAVE_NUBE = 'mi-dinero:nube';
 const CLAVE_PENDIENTES = 'mi-dinero:pendientes';
@@ -26,6 +27,7 @@ const datos = {
   movimientos: leer(CLAVES.movimientos, []),
   metas: leer(CLAVES.metas, []),
   dias: leer(CLAVES.dias, []),
+  pendientes: leer(CLAVES.pendientes, []),
 };
 let nube = leer(CLAVE_NUBE, null); // { url, clave } o null si no está conectada
 let pendientes = leer(CLAVE_PENDIENTES, []); // cambios que aún no se suben a la nube
@@ -173,13 +175,28 @@ function ahorradoEn(meta) {
   return sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro' && m.meta === meta.id));
 }
 
-// Un día cuenta para la racha si registraste algo ese día o marcaste "hoy no tuve movimientos".
+// Un día cuenta para la racha si registraste algo ese día (movimiento, meta o pago) o marcaste "hoy no tuve movimientos".
 function diasActivos() {
   const activos = new Set(datos.dias.map((d) => d.id));
-  for (const m of datos.movimientos) {
-    if (m.creado) activos.add(fechaLocal(new Date(m.creado)));
+  for (const x of [...datos.movimientos, ...datos.metas, ...datos.pendientes]) {
+    if (x.creado) activos.add(fechaLocal(new Date(x.creado)));
   }
   return activos;
+}
+
+// Cuántos días faltan para una fecha (negativo si ya pasó).
+function diasPara(fecha) {
+  return Math.round((aFecha(fecha) - aFecha(hoy())) / 86400000);
+}
+
+function cuandoVence(fecha) {
+  const dias = diasPara(fecha);
+  if (dias < -1) return `Venció hace ${-dias} días`;
+  if (dias === -1) return 'Venció ayer';
+  if (dias === 0) return 'Es hoy';
+  if (dias === 1) return 'Mañana';
+  if (dias < 7) return `En ${dias} días`;
+  return fechaBonita(fecha);
 }
 
 function calcularRacha() {
@@ -207,7 +224,7 @@ function calcularRacha() {
     return { dia, activo: activos.has(dia), esHoy: atras === 0 };
   });
 
-  return { actual, mejor, registradoHoy, semana };
+  return { actual, mejor, registradoHoy, semana, activos };
 }
 
 // ---------- Dibujar la pantalla ----------
@@ -216,6 +233,7 @@ function dibujar() {
   dibujarRacha();
   dibujarTotal();
   dibujarMetas();
+  dibujarPagos();
 
   const mes = $('#mes').value; // "AAAA-MM"
   const delMes = datos.movimientos
@@ -238,7 +256,9 @@ function dibujar() {
 }
 
 function dibujarRacha() {
-  const { actual, mejor, registradoHoy, semana } = calcularRacha();
+  const { actual, mejor, registradoHoy, semana, activos } = calcularRacha();
+  dibujarCalendario(activos);
+  $('#punto-racha').hidden = registradoHoy;
 
   $('#racha-dias').textContent = `🔥 ${actual} ${actual === 1 ? 'día' : 'días'}`;
   $('#racha-dias').classList.toggle('apagada', actual === 0);
@@ -260,6 +280,35 @@ function dibujarRacha() {
   else mensaje = 'Registra algo hoy para empezar tu racha.';
   $('#racha-mensaje').textContent = mensaje;
   $('#sin-movimientos').hidden = registradoHoy;
+}
+
+// Calendario del mes actual con los días registrados.
+function dibujarCalendario(activos) {
+  const hoyTexto = hoy();
+  const [a, m] = hoyTexto.split('-').map(Number);
+  const primero = new Date(a, m - 1, 1);
+  const diasDelMes = new Date(a, m, 0).getDate();
+  const huecos = (primero.getDay() + 6) % 7; // la semana empieza en lunes
+
+  const celdas = [];
+  for (let i = 0; i < huecos; i++) celdas.push(document.createElement('li'));
+  let registrados = 0;
+  for (let d = 1; d <= diasDelMes; d++) {
+    const dia = fechaLocal(new Date(a, m - 1, d));
+    const li = document.createElement('li');
+    li.textContent = d;
+    if (activos.has(dia)) {
+      li.classList.add('activo');
+      registrados++;
+    }
+    if (dia === hoyTexto) li.classList.add('hoy');
+    if (dia > hoyTexto) li.classList.add('futuro');
+    celdas.push(li);
+  }
+  $('#calendario').replaceChildren(...celdas);
+  const mes = primero.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  $('#calendario-titulo').textContent = mes[0].toUpperCase() + mes.slice(1);
+  $('#calendario-cuenta').textContent = `${registrados} de ${Number(hoyTexto.slice(8))} días`;
 }
 
 function dibujarTotal() {
@@ -308,6 +357,73 @@ function dibujarMetas() {
     );
     ul.append(li);
   }
+}
+
+function dibujarPagos() {
+  const ordenados = [...datos.pendientes].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const debo = ordenados.filter((p) => p.tipo === 'debo');
+  const meDeben = ordenados.filter((p) => p.tipo === 'me-deben');
+
+  $('#total-debo').textContent = dinero.format(sumar(debo));
+  $('#total-me-deben').textContent = dinero.format(sumar(meDeben));
+  // El punto en la barra avisa de pagos que vencen hoy, mañana o ya vencieron.
+  $('#punto-pagos').hidden = !ordenados.some((p) => diasPara(p.fecha) <= 1);
+
+  dibujarListaPagos($('#lista-debo'), debo, 'No le debes nada a nadie. 🙌');
+  dibujarListaPagos($('#lista-me-deben'), meDeben, 'Nadie te debe nada.');
+}
+
+function dibujarListaPagos(ul, pagos, textoVacio) {
+  ul.replaceChildren();
+  if (pagos.length === 0) {
+    ul.append(vacio(textoVacio));
+    return;
+  }
+  for (const p of pagos) {
+    const dias = diasPara(p.fecha);
+    const li = document.createElement('li');
+    li.className = p.tipo === 'debo' ? 'gasto' : 'ingreso';
+
+    const info = document.createElement('div');
+    const titulo = document.createElement('strong');
+    titulo.textContent = p.persona;
+    const detalle = document.createElement('small');
+    const cuando = document.createElement('span');
+    cuando.className = 'vence' + (dias < 0 ? ' vencido' : dias <= 1 ? ' pronto' : '');
+    cuando.textContent = cuandoVence(p.fecha);
+    detalle.append(cuando, p.nota ? ` · ${p.nota}` : '');
+    info.append(titulo, detalle);
+
+    const monto = document.createElement('span');
+    monto.className = 'monto';
+    monto.textContent = dinero.format(p.monto);
+
+    const listo = document.createElement('button');
+    listo.type = 'button';
+    listo.className = 'listo';
+    listo.textContent = p.tipo === 'debo' ? 'Pagué' : 'Me pagó';
+    listo.addEventListener('click', () => liquidarPago(p));
+
+    li.append(info, monto, listo, botonBorrar(`Borrado: ${p.persona} ${dinero.format(p.monto)}`, () => borrar('pendientes', p.id)));
+    ul.append(li);
+  }
+}
+
+// Al pagar (o cobrar), el pago se vuelve un gasto (o ingreso) y sale de la lista de pendientes.
+function liquidarPago(p) {
+  const debo = p.tipo === 'debo';
+  agregar('movimientos', {
+    id: crypto.randomUUID(),
+    tipo: debo ? 'gasto' : 'ingreso',
+    monto: p.monto,
+    categoria: 'Otros',
+    nota: (debo ? 'Pago a ' : 'Me pagó ') + p.persona + (p.nota ? ` (${p.nota})` : ''),
+    fecha: hoy(),
+    creado: Date.now(),
+    meta: '',
+  });
+  borrar('pendientes', p.id);
+  avisar(debo ? `✅ Pagado a ${p.persona}. Lo anoté como gasto.` : `✅ ${p.persona} te pagó. Lo anoté como ingreso.`);
 }
 
 function dibujarCategorias(delMes, totalGastos) {
@@ -436,10 +552,7 @@ function abrirFormulario(prellenado = {}) {
   if (!prellenado.monto) form.monto.focus();
 }
 
-$('#abrir-form').addEventListener('click', () => abrirFormulario());
-$('#cancelar').addEventListener('click', () => $('#dialogo').close());
-
-for (const radio of document.querySelectorAll('input[name="tipo"]')) {
+for (const radio of $('#form').querySelectorAll('input[name="tipo"]')) {
   radio.addEventListener('change', llenarCategorias);
 }
 
@@ -478,13 +591,6 @@ $('#sin-movimientos').addEventListener('click', () => {
 
 // ---------- Metas ----------
 
-$('#nueva-meta').addEventListener('click', () => {
-  $('#form-meta').reset();
-  $('#dialogo-meta').showModal();
-});
-
-$('#cancelar-meta').addEventListener('click', () => $('#dialogo-meta').close());
-
 $('#form-meta').addEventListener('submit', (evento) => {
   evento.preventDefault();
   const form = evento.target;
@@ -497,6 +603,77 @@ $('#form-meta').addEventListener('submit', (evento) => {
   $('#dialogo-meta').close();
   avisar('🎯 Meta creada. Toca "Aportar" cuando apartes dinero para ella.');
 });
+
+// ---------- Pagos pendientes ----------
+
+function ajustarFormularioPago() {
+  const debo = $('#form-pago').tipo.value === 'debo';
+  $('#etiqueta-persona').textContent = debo ? '¿A quién le debes?' : '¿Quién te debe?';
+}
+
+for (const radio of $('#form-pago').querySelectorAll('input[name="tipo"]')) {
+  radio.addEventListener('change', ajustarFormularioPago);
+}
+
+$('#form-pago').addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const form = evento.target;
+  agregar('pendientes', {
+    id: crypto.randomUUID(),
+    tipo: form.tipo.value,
+    persona: form.persona.value.trim(),
+    monto: Math.round(Number(form.monto.value) * 100) / 100,
+    fecha: form.fecha.value,
+    nota: form.nota.value.trim(),
+    creado: Date.now(),
+  });
+  $('#dialogo-pago').close();
+  avisar(nube ? '📌 Anotado. Te lo recordaré por Telegram un día antes.' : '📌 Anotado.');
+});
+
+// ---------- Secciones y botones de abrir/cerrar ----------
+
+function mostrarVista(nombre) {
+  if (!$(`#vista-${nombre}`)) nombre = 'dinero';
+  for (const vista of document.querySelectorAll('.vista')) {
+    vista.hidden = vista.id !== `vista-${nombre}`;
+  }
+  for (const boton of document.querySelectorAll('.barra-secciones button')) {
+    if (boton.dataset.vista === nombre) boton.setAttribute('aria-current', 'page');
+    else boton.removeAttribute('aria-current');
+  }
+  $('#titulo').textContent = $(`#vista-${nombre}`).dataset.titulo;
+  $('#mes').hidden = nombre !== 'dinero'; // el mes solo aplica a la sección Dinero
+  window.scrollTo(0, 0);
+  try {
+    localStorage.setItem('mi-dinero:vista', JSON.stringify(nombre));
+  } catch {}
+}
+
+for (const boton of document.querySelectorAll('.barra-secciones button')) {
+  boton.addEventListener('click', () => mostrarVista(boton.dataset.vista));
+}
+
+const abridores = {
+  movimiento: () => abrirFormulario(),
+  meta: () => {
+    $('#form-meta').reset();
+    $('#dialogo-meta').showModal();
+  },
+  pago: () => {
+    const form = $('#form-pago');
+    form.reset();
+    form.fecha.value = sumarDias(hoy(), 7);
+    ajustarFormularioPago();
+    $('#dialogo-pago').showModal();
+  },
+};
+for (const boton of document.querySelectorAll('[data-abre]')) {
+  boton.addEventListener('click', abridores[boton.dataset.abre]);
+}
+for (const boton of document.querySelectorAll('[data-cierra]')) {
+  boton.addEventListener('click', () => boton.closest('dialog').close());
+}
 
 // ---------- IA: escribir en lenguaje normal ----------
 
@@ -536,8 +713,6 @@ $('#abrir-ajustes').addEventListener('click', () => {
   form.clave.value = nube?.clave || '';
   $('#dialogo-ajustes').showModal();
 });
-
-$('#cancelar-ajustes').addEventListener('click', () => $('#dialogo-ajustes').close());
 
 $('#form-ajustes').addEventListener('submit', (evento) => {
   evento.preventDefault();
@@ -604,6 +779,7 @@ $('#importar').addEventListener('change', async (evento) => {
 $('#mes').value = hoy().slice(0, 7);
 dibujar();
 mostrarIA();
+mostrarVista(leer('mi-dinero:vista', 'dinero'));
 if (nube) {
   sincronizar();
 } else {

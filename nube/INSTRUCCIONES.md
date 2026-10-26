@@ -41,7 +41,7 @@ Cuando tengan la llave (empieza con `sk-ant-`):
 ## Parte 3: Telegram (recordatorios y resumen semanal)
 
 Con esto te llega:
-- **Cada noche a las 8 pm**, un recordatorio *solo si ese día no registraste nada*, para que no pierdas tu racha.
+- **Cada noche a las 8 pm**, un recordatorio *solo si hace falta*: si ese día no registraste nada (para que no pierdas tu racha) o si tienes pagos pendientes que vencen mañana, hoy o ya vencieron.
 - **Cada domingo a las 9 pm**, el resumen de tu semana: con cuánto empezaste, cuánto generaste, cuánto gastaste, cuánto apartaste para metas, con cuánto terminaste, en qué gastaste más, cómo van tus metas y tu racha.
 
 ### 1. Crear tu bot

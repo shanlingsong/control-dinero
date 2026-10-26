@@ -1,5 +1,5 @@
 // Servidor de Mi Dinero en Google Apps Script.
-// Guarda movimientos, metas y días registrados en esta hoja de cálculo,
+// Guarda movimientos, metas, días registrados y pagos pendientes en esta hoja de cálculo,
 // usa a Claude para entender texto escrito normal y manda resúmenes por Telegram.
 //
 // Propiedades del script (Configuración del proyecto → Propiedades del script):
@@ -23,6 +23,12 @@ const COLECCIONES = {
   },
   metas: { hoja: 'Metas', columnas: ['id', 'nombre', 'objetivo', 'creado'], numeros: ['objetivo', 'creado'], texto: ['A:A'] },
   dias: { hoja: 'Dias', columnas: ['id', 'creado'], numeros: ['creado'], texto: ['A:A'] },
+  pendientes: {
+    hoja: 'Pagos pendientes',
+    columnas: ['id', 'tipo', 'persona', 'monto', 'fecha', 'nota', 'creado'],
+    numeros: ['monto', 'creado'],
+    texto: ['A:A', 'E:E'],
+  },
 };
 
 // La app manda todas las peticiones aquí, como texto JSON.
@@ -50,6 +56,7 @@ function doPost(e) {
           movimientos: leerTodo('movimientos'),
           metas: leerTodo('metas'),
           dias: leerTodo('dias'),
+          pendientes: leerTodo('pendientes'),
           // "ia" le dice a la app si debe mostrar la caja para escribir con IA
           ia: Boolean(props.getProperty('ANTHROPIC_API_KEY')),
         });
@@ -226,13 +233,39 @@ function escapar(texto) {
   return String(texto).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Un día cuenta para la racha si registraste un movimiento ese día o marcaste "hoy no tuve movimientos".
-function diasActivos(movimientos, dias) {
-  const activos = new Set(dias.map((d) => d.id));
-  movimientos.forEach((m) => {
-    if (m.creado) activos.add(Utilities.formatDate(new Date(m.creado), ZONA, 'yyyy-MM-dd'));
+// Un día cuenta para la racha si registraste algo ese día (movimiento, meta o pago) o marcaste "hoy no tuve movimientos".
+function diasActivos() {
+  const activos = new Set(leerTodo('dias').map((d) => d.id));
+  [...leerTodo('movimientos'), ...leerTodo('metas'), ...leerTodo('pendientes')].forEach((x) => {
+    if (x.creado) activos.add(Utilities.formatDate(new Date(x.creado), ZONA, 'yyyy-MM-dd'));
   });
   return activos;
+}
+
+// Cuántos días faltan para una fecha (negativo si ya pasó).
+function diasEntre(desde, hasta) {
+  const aUTC = (fecha) => {
+    const [a, m, d] = fecha.split('-').map(Number);
+    return Date.UTC(a, m - 1, d);
+  };
+  return Math.round((aUTC(hasta) - aUTC(desde)) / 86400000);
+}
+
+// "Darío · $100.00 · mañana"
+function lineaPago(p, hoy) {
+  const dias = diasEntre(hoy, p.fecha);
+  let cuando;
+  if (dias < -1) cuando = `venció hace ${-dias} días`;
+  else if (dias === -1) cuando = 'venció ayer';
+  else if (dias === 0) cuando = 'es hoy';
+  else if (dias === 1) cuando = 'mañana';
+  else cuando = `${fechaCorta(p.fecha)} (en ${dias} días)`;
+  const nota = p.nota ? ` — ${escapar(p.nota)}` : '';
+  return `• <b>${escapar(p.persona)}</b> · ${pesos(p.monto)} · ${cuando}${nota}`;
+}
+
+function pagosHasta(pendientes, tipo, hasta) {
+  return pendientes.filter((p) => p.tipo === tipo && p.fecha <= hasta).sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
 function contarRacha(activos, desde) {
@@ -288,24 +321,36 @@ function configurarTelegram() {
 
   enviarTelegram(
     '✅ <b>Mi Dinero está conectado</b>\n\n' +
-      '• Cada noche (8 pm) te aviso si no has registrado nada, para que no pierdas tu racha.\n' +
+      '• Cada noche (8 pm) te aviso si no has registrado nada, para que no pierdas tu racha, y de los pagos que vencen.\n' +
       '• Cada domingo (9 pm) te mando el resumen de tu semana.'
   );
 }
 
-// Se corre sola cada noche. Solo manda mensaje si hoy no registraste nada.
+// Se corre sola cada noche. Solo manda mensaje si hay algo que recordar:
+// pagos que vencen mañana, hoy o ya vencieron, o que hoy no registraste nada.
 function recordatorioDiario() {
   const hoy = fechaHoy();
-  const activos = diasActivos(leerTodo('movimientos'), leerTodo('dias'));
-  if (activos.has(hoy)) return;
+  const partes = [];
 
-  const racha = contarRacha(activos, sumarDias(hoy, -1));
-  const texto =
-    racha > 0
-      ? `🔥 Llevas <b>${racha} ${racha === 1 ? 'día' : 'días'} seguidos</b> registrando tu dinero.\n` +
-        'Hoy todavía no anotas nada: entra antes de dormir para no perder tu racha.'
-      : '📝 Hoy no has registrado nada en Mi Dinero. ¡Empieza una racha nueva!';
-  enviarTelegram(`${texto}\n\n${URL_APP}`);
+  const pendientes = leerTodo('pendientes');
+  const debo = pagosHasta(pendientes, 'debo', sumarDias(hoy, 1));
+  const meDeben = pagosHasta(pendientes, 'me-deben', sumarDias(hoy, 1));
+  if (debo.length > 0) partes.push('📌 <b>Pagos que tienes que hacer</b>\n' + debo.map((p) => lineaPago(p, hoy)).join('\n'));
+  if (meDeben.length > 0) partes.push('💬 <b>Te tienen que pagar</b>\n' + meDeben.map((p) => lineaPago(p, hoy)).join('\n'));
+
+  const activos = diasActivos();
+  if (!activos.has(hoy)) {
+    const racha = contarRacha(activos, sumarDias(hoy, -1));
+    partes.push(
+      racha > 0
+        ? `🔥 Llevas <b>${racha} ${racha === 1 ? 'día' : 'días'} seguidos</b> registrando tu dinero.\n` +
+            'Hoy todavía no anotas nada: entra antes de dormir para no perder tu racha.'
+        : '📝 Hoy no has registrado nada en Mi Dinero. ¡Empieza una racha nueva!'
+    );
+  }
+
+  if (partes.length === 0) return;
+  enviarTelegram(`${partes.join('\n\n')}\n\n${URL_APP}`);
 }
 
 // Se corre sola cada domingo en la noche: resume los últimos 7 días (lunes a domingo).
@@ -332,7 +377,7 @@ function resumenSemanal() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  const activos = diasActivos(movimientos, leerTodo('dias'));
+  const activos = diasActivos();
   const diasRegistrados = [0, 1, 2, 3, 4, 5, 6].filter((i) => activos.has(sumarDias(inicio, i))).length;
   const racha = contarRacha(activos, activos.has(hoy) ? hoy : sumarDias(hoy, -1));
 
@@ -359,6 +404,19 @@ function resumenSemanal() {
       const avance = Math.min(100, Math.round((ahorrado / meta.objetivo) * 100));
       lineas.push(`• ${escapar(meta.nombre)}: ${pesos(ahorrado)} de ${pesos(meta.objetivo)} (${avance}%)${avance >= 100 ? ' 🎉' : ''}`);
     });
+  }
+
+  const pendientes = leerTodo('pendientes');
+  const proximaSemana = sumarDias(hoy, 7);
+  const debo = pagosHasta(pendientes, 'debo', proximaSemana);
+  const meDeben = pagosHasta(pendientes, 'me-deben', proximaSemana);
+  if (debo.length > 0) {
+    lineas.push('', '<b>📌 Pagos que tienes esta semana</b>');
+    debo.forEach((p) => lineas.push(lineaPago(p, hoy)));
+  }
+  if (meDeben.length > 0) {
+    lineas.push('', '<b>💬 Te tienen que pagar esta semana</b>');
+    meDeben.forEach((p) => lineas.push(lineaPago(p, hoy)));
   }
 
   lineas.push('', `🔥 Racha: <b>${racha} ${racha === 1 ? 'día' : 'días'}</b> · Registraste ${diasRegistrados} de 7 días`);

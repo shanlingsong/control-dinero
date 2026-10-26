@@ -7,7 +7,10 @@ App sencilla para llevar el control de **ingresos y gastos** desde el teléfono.
 - Muestra en qué categorías se va el dinero.
 - **Metas de ahorro**: apartas dinero para algo y ves cuánto te falta.
 - **Racha**: cuenta los días seguidos que registras algo, para crear el hábito.
-- **Telegram**: recordatorio cada noche que no registres nada y resumen de tu semana cada domingo.
+- **Pagos pendientes**: lo que debes y lo que te deben, con fecha; al pagarlo se anota solo como gasto o ingreso.
+- **Telegram**: recordatorio cada noche que no registres nada o tengas pagos por vencer, y resumen de tu semana cada domingo.
+
+La app tiene 4 secciones en la barra de abajo: **Dinero**, **Metas**, **Racha** y **Pagos**.
 - Se instala en el teléfono como una app y funciona sin internet.
 
 ## Dónde se guardan los datos

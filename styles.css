@@ -33,7 +33,7 @@ body {
   background: var(--fondo);
   color: var(--texto);
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  padding-bottom: 96px;
+  padding-bottom: calc(90px + env(safe-area-inset-bottom));
 }
 
 header {
@@ -91,8 +91,10 @@ header input {
 .aviso {
   position: fixed;
   left: 16px;
-  right: 96px;
-  bottom: calc(28px + env(safe-area-inset-bottom));
+  right: 16px;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  z-index: 3;
+  margin: 0 auto;
   max-width: 420px;
   background: var(--texto);
   color: var(--fondo);
@@ -130,15 +132,13 @@ main {
 .suave { color: var(--suave); font-size: 0.85rem; }
 
 /* Racha */
-.racha { gap: 10px; }
-.racha-arriba { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.racha-arriba > div { display: grid; flex-shrink: 0; }
-.racha #racha-dias { font-size: 1.6rem; color: var(--racha); white-space: nowrap; }
+.racha { gap: 8px; justify-items: center; text-align: center; padding: 20px 12px; }
+.racha #racha-dias { font-size: 2.6rem; color: var(--racha); white-space: nowrap; }
 .racha #racha-dias.apagada { color: var(--suave); }
-.racha-semana { display: flex; gap: 3px; }
+.racha-semana { display: flex; gap: 6px; margin: 6px 0; }
 .racha-semana li {
-  width: 24px;
-  height: 24px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -151,8 +151,88 @@ main {
 }
 .racha-semana li.activo { background: var(--racha); border-color: var(--racha); color: #fff; }
 .racha-semana li.hoy { outline: 2px solid var(--racha); outline-offset: 1px; }
-.racha-mensaje { margin: 0; font-size: 0.9rem; }
-.racha button { justify-self: start; padding: 8px 12px; font-size: 0.9rem; }
+.racha-mensaje { margin: 0; font-size: 0.95rem; }
+.racha button { padding: 8px 14px; font-size: 0.9rem; }
+.ayuda-racha { margin: 0; font-size: 0.85rem; color: var(--suave); }
+
+/* Calendario de la racha */
+.fila-titulo { display: flex; justify-content: space-between; align-items: baseline; }
+.fila-titulo h2 { margin: 0; }
+.calendario-dias, .calendario {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.calendario-dias { font-size: 0.75rem; margin-top: 8px; }
+.calendario li {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.calendario li:empty { visibility: hidden; }
+.calendario li.activo { background: var(--racha); color: #fff; font-weight: 600; }
+.calendario li.hoy { outline: 2px solid var(--racha); outline-offset: -2px; }
+.calendario li.futuro { color: var(--suave); opacity: 0.5; }
+
+/* Secciones */
+.vista { display: grid; gap: 20px; }
+.vista[hidden] { display: none; }
+.vista h2 { margin-bottom: 8px; }
+
+.agregar-grande { width: 100%; padding: 14px; font-size: 1rem; }
+
+.barra-secciones {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--superficie);
+  border-top: 1px solid var(--borde);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.barra-secciones button {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  background: none;
+  color: var(--suave);
+  border-radius: 0;
+  padding: 8px 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.barra-secciones .emoji { font-size: 1.35rem; filter: grayscale(1); opacity: 0.7; }
+.barra-secciones button[aria-current="page"] { color: var(--marca); }
+.barra-secciones button[aria-current="page"] .emoji { filter: none; opacity: 1; }
+.punto {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 10px);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gasto);
+}
+.punto[hidden] { display: none; }
+
+/* Pagos pendientes */
+.pagos .listo { padding: 6px 10px; font-size: 0.8rem; }
+.vence.pronto { color: var(--racha); font-weight: 600; }
+.vence.vencido { color: var(--gasto); font-weight: 600; }
+.tipo.dos { grid-template-columns: 1fr 1fr; }
+.tipo input[value="debo"]:checked + span { background: var(--gasto); border-color: var(--gasto); color: #fff; }
+.tipo input[value="me-deben"]:checked + span { background: var(--ingreso); border-color: var(--ingreso); color: #fff; }
+
+dialog h2.separado { margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--borde); }
+dialog .acciones.izquierda { justify-content: flex-start; }
 
 /* Mi dinero hoy */
 .total strong { font-size: 1.8rem; }
