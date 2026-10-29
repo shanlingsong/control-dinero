@@ -1616,6 +1616,70 @@ $('#traer-sheets').addEventListener('click', async () => {
   }
 });
 
+// ---------- Avisos por Telegram ----------
+// La Edge Function "kashiki-bot" (supabase/functions) guarda qué chat de Telegram es de cada cuenta.
+
+const pedirAlBot = async (accion) => {
+  const { data, error } = await db.functions.invoke('kashiki-bot', { body: { accion } });
+  if (error) throw error;
+  return data;
+};
+
+function pintarTelegram(texto, conectado) {
+  $('#telegram-estado').textContent = texto;
+  $('#telegram-conectar').hidden = conectado;
+  $('#telegram-desconectar').hidden = !conectado;
+  $('#telegram-abrir').hidden = true;
+}
+
+// Si la función todavía no está publicada en Supabase, el bloque ni se muestra.
+async function revisarTelegram() {
+  if (!cuenta) return;
+  try {
+    const { conectado } = await pedirAlBot('estado');
+    $('#bloque-telegram').hidden = false;
+    pintarTelegram(
+      conectado ? 'Telegram conectado: te aviso cada noche y los domingos' : 'Recibe recordatorios y tu resumen semanal en Telegram',
+      conectado
+    );
+  } catch {
+    $('#bloque-telegram').hidden = true;
+  }
+}
+
+// El link lleva un código de un solo uso; al picarle "Iniciar", el bot sabe que ese chat es de esta cuenta.
+$('#telegram-conectar').addEventListener('click', async () => {
+  const boton = $('#telegram-conectar');
+  boton.disabled = true;
+  try {
+    const { codigo, bot } = await pedirAlBot('codigo');
+    const abrir = $('#telegram-abrir');
+    abrir.href = `https://t.me/${bot}?start=${codigo}`;
+    abrir.hidden = false;
+    boton.hidden = true;
+    $('#telegram-estado').textContent = 'Ábrelo, pícale "Iniciar" y regresa aquí';
+  } catch (error) {
+    avisar('No se pudo conectar Telegram: ' + traducirError(error));
+  } finally {
+    boton.disabled = false;
+  }
+});
+
+$('#telegram-desconectar').addEventListener('click', async () => {
+  try {
+    await pedirAlBot('desconectar');
+    pintarTelegram('Recibe recordatorios y tu resumen semanal en Telegram', false);
+    avisar('Listo, ya no te llegarán avisos.');
+  } catch (error) {
+    avisar('No se pudo: ' + traducirError(error));
+  }
+});
+
+// Al regresar de Telegram, revisa si ya quedó conectado.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !$('#telegram-abrir').hidden) revisarTelegram();
+});
+
 async function iniciarCuenta() {
   const { data } = await db.auth.getSession();
   db.auth.onAuthStateChange((evento, sesion) => {
@@ -1632,6 +1696,7 @@ function abrirAjustes() {
   form.nombre.value = perfil.nombre;
   dibujarEncabezado();
   abrirHoja($('#hoja-ajustes'));
+  revisarTelegram();
 }
 $('#abrir-ajustes').addEventListener('click', abrirAjustes);
 $('#avatar').addEventListener('click', abrirAjustes);

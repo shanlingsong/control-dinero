@@ -1,0 +1,2 @@
+# Archivos con secretos: se quedan solo en esta compu, nunca se suben a GitHub.
+*.local.*

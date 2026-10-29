@@ -554,6 +554,8 @@ main {
   cursor: pointer;
 }
 .boton-secundario[hidden] { display: none; }
+a.boton-secundario { text-decoration: none; }
+.boton-secundario:disabled { opacity: .6; cursor: default; }
 .boton-texto { border: none; background: none; color: var(--acento-2); font-weight: 600; padding: 6px 4px; }
 .boton-texto[hidden] { display: none; }
 
