@@ -24,7 +24,7 @@ select cron.schedule(
   'kashiki-recordatorio',
   '0 2 * * *',
   $$ select net.http_post(
-       url := 'https://bzaawjfvzkfhusdtvnia.supabase.co/functions/v1/kashiki-bot',
+       url := 'https://bzaawjfvzkfhusdtvnia.supabase.co/functions/v1/kashiki-bot-',
        headers := '{"Content-Type": "application/json", "X-Telegram-Bot-Api-Secret-Token": "PON-AQUI-EL-SECRETO"}'::jsonb,
        body := '{"tarea": "diario"}'::jsonb
      ) $$
@@ -35,7 +35,7 @@ select cron.schedule(
   'kashiki-resumen',
   '0 3 * * 1',
   $$ select net.http_post(
-       url := 'https://bzaawjfvzkfhusdtvnia.supabase.co/functions/v1/kashiki-bot',
+       url := 'https://bzaawjfvzkfhusdtvnia.supabase.co/functions/v1/kashiki-bot-',
        headers := '{"Content-Type": "application/json", "X-Telegram-Bot-Api-Secret-Token": "PON-AQUI-EL-SECRETO"}'::jsonb,
        body := '{"tarea": "semanal"}'::jsonb
      ) $$
@@ -44,7 +44,7 @@ select cron.schedule(
 -- ---------- Conectar el bot con la función (una sola vez) ----------
 -- Le dice a Telegram: "cuando alguien le escriba al bot, avísale a kashiki-bot".
 select net.http_post(
-  url := 'https://bzaawjfvzkfhusdtvnia.supabase.co/functions/v1/kashiki-bot',
+  url := 'https://bzaawjfvzkfhusdtvnia.supabase.co/functions/v1/kashiki-bot-',
   headers := '{"Content-Type": "application/json", "X-Telegram-Bot-Api-Secret-Token": "PON-AQUI-EL-SECRETO"}'::jsonb,
   body := '{"tarea": "configurar"}'::jsonb
 );

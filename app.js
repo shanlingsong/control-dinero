@@ -1620,7 +1620,7 @@ $('#traer-sheets').addEventListener('click', async () => {
 // La Edge Function "kashiki-bot" (supabase/functions) guarda qué chat de Telegram es de cada cuenta.
 
 const pedirAlBot = async (accion) => {
-  const { data, error } = await db.functions.invoke('kashiki-bot', { body: { accion } });
+  const { data, error } = await db.functions.invoke('kashiki-bot-', { body: { accion } });
   if (error) throw error;
   return data;
 };

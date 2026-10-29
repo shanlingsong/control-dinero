@@ -177,7 +177,7 @@ const AYUDA =
 
 // Le dice a Telegram que mande los mensajes del bot a esta función. Se corre una vez.
 async function configurar() {
-  const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/kashiki-bot`;
+  const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/kashiki-bot-`;
   const respuesta = await telegram('setWebhook', { url, secret_token: SECRETO, allowed_updates: ['message'] });
   const menu = await telegram('setMyCommands', { commands: MENU });
   return { webhook: respuesta.ok, menu: menu.ok, bot: await nombreDelBot() };

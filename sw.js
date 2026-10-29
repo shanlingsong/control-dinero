@@ -1,7 +1,7 @@
-// Service worker: guarda una copia de la app para que abra aunque no haya internet.
-// Primero intenta descargar la versión más nueva; si no hay conexión, usa la copia guardada.
+﻿// Service worker: guarda una copia de la app para que abra aunque no haya internet.
+// Primero intenta descargar la versiÃ³n mÃ¡s nueva; si no hay conexiÃ³n, usa la copia guardada.
 
-const CACHE = 'kashiki-v15';
+const CACHE = 'kashiki-v16';
 const ARCHIVOS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'marca/kashiki.png'];
 
 self.addEventListener('install', (evento) => {
