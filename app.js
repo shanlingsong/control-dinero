@@ -572,11 +572,18 @@ function soltarGrafica() {
 
 // ---------- Movimientos del mes ----------
 
-function dibujarMes() {
+// En la pantalla principal solo se ven los más recientes; el resto, en "Ver todos".
+const RECIENTES = 4;
+
+function movimientosDelMes() {
   const mes = $('#mes').value; // "AAAA-MM"
-  const delMes = datos.movimientos
+  return datos.movimientos
     .filter((m) => m.fecha.startsWith(mes))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.creado - a.creado);
+}
+
+function dibujarMes() {
+  const delMes = movimientosDelMes();
 
   const ingresos = sumar(delMes.filter(esIngresoReal));
   const gastos = sumar(delMes.filter((m) => m.tipo === 'gasto'));
@@ -586,22 +593,87 @@ function dibujarMes() {
   $('#apartado-mes').textContent = apartado > 0 ? `Apartaste ${dinero.format(apartado)} para tus metas este mes` : '';
   $('#apartado-mes').hidden = apartado === 0;
 
-  dibujarLista(delMes);
-  dibujarCategorias(delMes, gastos);
+  dibujarLista($('#lista'), delMes.slice(0, RECIENTES), 'Aún no hay movimientos este mes. Toca + para agregar el primero.');
+  $('#ver-todos').hidden = delMes.length <= RECIENTES;
+  $('#ver-todos').firstChild.textContent = `Ver todos (${delMes.length}) `;
+  $('.pista-deslizar').hidden = delMes.length === 0;
+
+  if (!$('#vista-detalle').hidden) dibujarDetalle();
 }
+
+// ---------- Detalle: ingresos, gastos o todos ----------
+
+const detalle = { tipo: 'todos', orden: 'fecha' };
+const TEXTOS_DETALLE = {
+  ingreso: { titulo: 'Ingresos', etiqueta: 'Generaste este mes', lista: 'Lo que ingresaste', vacio: 'No tienes ingresos este mes.' },
+  gasto: { titulo: 'Gastos', etiqueta: 'Gastaste este mes', lista: 'Lo que gastaste', vacio: 'No tienes gastos este mes.' },
+  todos: { titulo: 'Movimientos', etiqueta: 'Balance del mes', lista: 'Todos', vacio: 'Aún no hay movimientos este mes.' },
+};
+
+function abrirDetalle(tipo) {
+  detalle.tipo = tipo;
+  detalle.orden = 'fecha';
+  // Así el botón "atrás" del teléfono regresa a la pantalla principal en vez de salirse de la app.
+  history.pushState({ detalle: tipo }, '');
+  mostrarVista('detalle');
+}
+
+function dibujarDetalle() {
+  const textos = TEXTOS_DETALLE[detalle.tipo];
+  const delMes = movimientosDelMes();
+  const lista = detalle.tipo === 'todos' ? delMes : delMes.filter((m) => m.tipo === detalle.tipo);
+  const mes = aFecha($('#mes').value + '-01').toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+
+  $('#detalle-titulo').textContent = textos.titulo;
+  $('#detalle-mes').textContent = mayuscula(mes);
+  $('#detalle-etiqueta').textContent = textos.etiqueta;
+  $('.detalle-total').className = 'tarjeta detalle-total ' + detalle.tipo;
+  // El saldo inicial no cuenta como ingreso del mes (igual que en el cuadro de Ingresos).
+  const total =
+    detalle.tipo === 'todos'
+      ? delMes.reduce((t, m) => t + efecto(m), 0)
+      : sumar(detalle.tipo === 'ingreso' ? lista.filter(esIngresoReal) : lista);
+  contar($('#detalle-total'), total, 700);
+  const tieneSaldoInicial = detalle.tipo === 'ingreso' && lista.some((m) => m.categoria === SALDO_INICIAL);
+  $('#detalle-cuenta').textContent =
+    `${lista.length} ${lista.length === 1 ? 'movimiento' : 'movimientos'}` + (tieneSaldoInicial ? ' · el saldo inicial no se suma' : '');
+
+  $('#bloque-categorias').hidden = detalle.tipo !== 'gasto';
+  if (detalle.tipo === 'gasto') dibujarCategorias(lista, total);
+
+  $('#detalle-lista-titulo').textContent = textos.lista;
+  document.querySelectorAll('[data-orden]').forEach((b) => b.classList.toggle('activo', b.dataset.orden === detalle.orden));
+  const ordenada = detalle.orden === 'monto' ? [...lista].sort((a, b) => b.monto - a.monto) : lista;
+  dibujarLista($('#detalle-lista'), ordenada, textos.vacio);
+}
+
+for (const boton of document.querySelectorAll('[data-detalle]')) {
+  boton.addEventListener('click', () => abrirDetalle(boton.dataset.detalle));
+}
+for (const boton of document.querySelectorAll('[data-orden]')) {
+  boton.addEventListener('click', () => {
+    detalle.orden = boton.dataset.orden;
+    dibujarDetalle();
+  });
+}
+$('#volver').addEventListener('click', () => {
+  if (history.state?.detalle) history.back();
+  else mostrarVista('dinero');
+});
+window.addEventListener('popstate', () => {
+  if (!$('#vista-detalle').hidden) mostrarVista('dinero');
+});
 
 let ultimoAgregado = null; // id del movimiento recién guardado, para animarlo al aparecer
 
-function dibujarLista(delMes) {
-  const ul = $('#lista');
+function dibujarLista(ul, movimientos, textoVacio) {
   ul.replaceChildren();
-  $('.pista-deslizar').hidden = delMes.length === 0;
-  if (delMes.length === 0) {
-    ul.append(vacio('Aún no hay movimientos este mes. Toca + para agregar el primero.'));
+  if (movimientos.length === 0) {
+    ul.append(vacio(textoVacio));
     return;
   }
   const signos = { gasto: '−', ingreso: '+', ahorro: '' };
-  for (const m of delMes) {
+  for (const m of movimientos) {
     const li = filaDeslizable(m.tipo, () => borrarConDeshacer('movimientos', m, `Borrado: ${m.categoria} ${dinero.format(m.monto)}`));
     const fila = li.querySelector('.fila');
     if (m.id === ultimoAgregado) fila.classList.add('entrando');
@@ -615,11 +687,9 @@ function dibujarLista(delMes) {
   ultimoAgregado = null;
 }
 
-function dibujarCategorias(delMes, totalGastos) {
+function dibujarCategorias(gastos, totalGastos) {
   const porCategoria = {};
-  for (const m of delMes) {
-    if (m.tipo === 'gasto') porCategoria[m.categoria] = (porCategoria[m.categoria] || 0) + m.monto;
-  }
+  for (const m of gastos) porCategoria[m.categoria] = (porCategoria[m.categoria] || 0) + m.monto;
   const ordenadas = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
 
   const ul = $('#categorias');
@@ -1208,13 +1278,19 @@ function mostrarVista(nombre) {
   for (const vista of document.querySelectorAll('.vista')) {
     vista.hidden = vista.id !== `vista-${nombre}`;
   }
+  // El detalle es parte de la sección Dinero.
+  const seccion = nombre === 'detalle' ? 'dinero' : nombre;
   for (const boton of document.querySelectorAll('.barra-secciones button')) {
-    if (boton.dataset.vista === nombre) boton.setAttribute('aria-current', 'page');
+    if (boton.dataset.vista === seccion) boton.setAttribute('aria-current', 'page');
     else boton.removeAttribute('aria-current');
   }
   $('#boton-agregar').hidden = nombre !== 'dinero';
   window.scrollTo(0, 0);
   // Al entrar a una sección se repiten sus animaciones.
+  if (nombre === 'detalle') {
+    dibujarDetalle();
+    return; // no se guarda: al volver a abrir la app empieza en la pantalla principal
+  }
   if (nombre === 'dinero') {
     $('#saldo').dataset.valor = 0;
     dibujarSaldo();

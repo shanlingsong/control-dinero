@@ -182,6 +182,32 @@ main {
 .titulo-seccion { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .titulo-seccion h2 { margin: 0; }
 
+/* ---------- Cuadros que se pueden picar ---------- */
+.boton-tarjeta {
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  transition: transform .12s, border-color .2s;
+}
+.boton-tarjeta:active { transform: scale(.97); }
+.boton-tarjeta:hover { border-color: var(--suave); }
+.boton-tarjeta .suave { display: flex; align-items: center; justify-content: space-between; }
+.boton-tarjeta .ti { font-size: 1rem; }
+
+.ver-todos { width: 100%; justify-content: center; margin-top: -6px; }
+.ver-todos[hidden] { display: none; }
+
+/* ---------- Detalle de ingresos / gastos ---------- */
+.detalle-arriba { display: flex; align-items: center; gap: 12px; }
+.detalle-titulos { display: grid; }
+.detalle-titulos strong { font-size: 1.25rem; font-weight: 700; }
+.detalle-total { display: grid; gap: 2px; }
+.detalle-total strong { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+.detalle-total.ingreso strong { color: var(--positivo); }
+.detalle-total.gasto strong { color: var(--negativo); }
+#bloque-categorias[hidden] { display: none; }
+.segmentos.chico button { padding: 5px 10px; font-size: 0.78rem; white-space: nowrap; }
+
 /* ---------- Saldo ---------- */
 .saldo-bloque { display: grid; gap: 2px; padding: 4px 2px 0; }
 .saldo-bloque .suave { font-size: 0.85rem; }

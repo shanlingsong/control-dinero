@@ -83,18 +83,56 @@
         <h2>Movimientos</h2>
         <input type="month" id="mes" class="selector-mes" aria-label="Mes a mostrar">
       </div>
+      <!-- Al picar un cuadro se abren solo esos movimientos -->
       <div class="dos-columnas">
-        <div class="tarjeta mini"><span class="suave">Ingresos</span><strong id="total-ingresos" class="positivo">$0.00</strong></div>
-        <div class="tarjeta mini"><span class="suave">Gastos</span><strong id="total-gastos" class="negativo">$0.00</strong></div>
+        <button type="button" class="tarjeta mini boton-tarjeta" data-detalle="ingreso">
+          <span class="suave">Ingresos <i class="ti ti-chevron-right" aria-hidden="true"></i></span>
+          <strong id="total-ingresos" class="positivo">$0.00</strong>
+        </button>
+        <button type="button" class="tarjeta mini boton-tarjeta" data-detalle="gasto">
+          <span class="suave">Gastos <i class="ti ti-chevron-right" aria-hidden="true"></i></span>
+          <strong id="total-gastos" class="negativo">$0.00</strong>
+        </button>
       </div>
       <p id="apartado-mes" class="suave pequeno"></p>
-      <ul id="lista" class="lista"></ul>
-      <p class="pista-deslizar suave pequeno"><i class="ti ti-hand-finger-left" aria-hidden="true"></i> Desliza un movimiento a la izquierda para borrarlo</p>
 
-      <div>
-        <h2>¿En qué gasto?</h2>
+      <div class="titulo-seccion">
+        <h2>Últimos movimientos</h2>
+      </div>
+      <ul id="lista" class="lista"></ul>
+      <button type="button" id="ver-todos" class="boton-secundario ver-todos" data-detalle="todos">Ver todos <i class="ti ti-chevron-right" aria-hidden="true"></i></button>
+      <p class="pista-deslizar suave pequeno"><i class="ti ti-hand-finger-left" aria-hidden="true"></i> Desliza un movimiento a la izquierda para borrarlo</p>
+    </section>
+
+    <!-- ========== Detalle: ingresos, gastos o todos los movimientos del mes ========== -->
+    <section id="vista-detalle" class="vista" hidden>
+      <div class="detalle-arriba">
+        <button type="button" id="volver" class="boton-icono" aria-label="Regresar"><i class="ti ti-arrow-left" aria-hidden="true"></i></button>
+        <div class="detalle-titulos">
+          <strong id="detalle-titulo">Movimientos</strong>
+          <span id="detalle-mes" class="suave pequeno"></span>
+        </div>
+      </div>
+
+      <div class="tarjeta detalle-total">
+        <span id="detalle-etiqueta" class="suave">Total</span>
+        <strong id="detalle-total">$0.00</strong>
+        <span id="detalle-cuenta" class="suave pequeno"></span>
+      </div>
+
+      <div id="bloque-categorias">
+        <h2>¿En qué gasto más?</h2>
         <ul id="categorias" class="categorias"></ul>
       </div>
+
+      <div class="titulo-seccion">
+        <h2 id="detalle-lista-titulo">Todos</h2>
+        <div class="segmentos chico" role="group" aria-label="Ordenar">
+          <button type="button" data-orden="fecha" class="activo">Recientes</button>
+          <button type="button" data-orden="monto">Más grandes</button>
+        </div>
+      </div>
+      <ul id="detalle-lista" class="lista"></ul>
     </section>
 
     <!-- ========== Sección: Metas ========== -->
