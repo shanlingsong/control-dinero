@@ -1523,6 +1523,7 @@ function ponerCuenta(usuario) {
     mostrarEstado('ti-device-mobile', 'Sin cuenta: tus datos solo están en este teléfono');
     return;
   }
+  nombreDeLaCuenta();
   if (anterior === cuenta.id) return;
   return alEntrar();
 }
@@ -1706,10 +1707,34 @@ function guardarPerfil() {
   dibujarEncabezado();
 }
 
+// El nombre también se guarda en la cuenta, para que salga en cualquier teléfono o compu.
+// Espera a que dejes de escribir un momento para no mandarlo letra por letra.
+let esperaNombre;
 $('#nombre').addEventListener('input', (e) => {
   perfil.nombre = e.target.value.trim();
   guardarPerfil();
+  clearTimeout(esperaNombre);
+  esperaNombre = setTimeout(subirNombre, 800);
 });
+
+function subirNombre() {
+  if (!cuenta || cuenta.user_metadata?.nombre === perfil.nombre) return;
+  db.auth.updateUser({ data: { nombre: perfil.nombre } }).then(({ data }) => {
+    if (data?.user) cuenta = data.user;
+  });
+}
+
+// Al entrar: si la cuenta ya tiene nombre, ese manda; si no, se le pone el de este teléfono.
+function nombreDeLaCuenta() {
+  const enLaCuenta = cuenta.user_metadata?.nombre;
+  if (!enLaCuenta) {
+    if (perfil.nombre) subirNombre();
+    return;
+  }
+  if (enLaCuenta === perfil.nombre) return;
+  perfil.nombre = enLaCuenta;
+  guardarPerfil();
+}
 
 // ---------- Recorte de la foto ----------
 
