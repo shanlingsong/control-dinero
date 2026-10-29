@@ -18,8 +18,10 @@ const URL_APP = 'https://shanlingsong.github.io/control-dinero/';
 const SALDO_INICIAL = 'Saldo inicial';
 const MINUTOS_CODIGO = 30;
 
-const TOKEN = Deno.env.get('TELEGRAM_TOKEN') ?? '';
-const SECRETO = Deno.env.get('BOT_SECRETO') ?? '';
+// Acepta el nombre con guion bajo o con guion medio (TELEGRAM_TOKEN o TELEGRAM-TOKEN).
+const secreto = (nombre: string) => Deno.env.get(nombre) ?? Deno.env.get(nombre.replace('_', '-')) ?? '';
+const TOKEN = secreto('TELEGRAM_TOKEN');
+const SECRETO = secreto('BOT_SECRETO');
 // db usa la llave de servicio: se salta las reglas RLS, por eso cada consulta filtra por user_id a mano.
 const db = createClient(Deno.env.get('SUPABASE_URL')!, llaveDeServicio());
 
