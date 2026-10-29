@@ -122,14 +122,51 @@ async function atenderTelegram(update: any) {
     return;
   }
 
-  await enviar(chatId, `Hola 👋 Soy el bot de Kashiki. Para recibir tus avisos abre Kashiki → Ajustes → <b>Conectar Telegram</b>.\n\n${URL_APP}`);
+  // Los comandos solo funcionan si este chat ya está conectado a una cuenta.
+  const { data: dueno } = await db.from('telegram').select('user_id').eq('chat_id', chatId).limit(1).maybeSingle();
+  if (!dueno) {
+    await enviar(chatId, `Hola 👋 Soy el bot de Kashiki. Para recibir tus avisos abre Kashiki → Ajustes → <b>Conectar Telegram</b>.\n\n${URL_APP}`);
+    return;
+  }
+
+  const responder = COMANDOS[comando.split('@')[0].toLowerCase()];
+  if (!responder) {
+    await enviar(chatId, AYUDA);
+    return;
+  }
+  const hoy = fechaDe(Date.now());
+  await enviar(chatId, responder(await leerDatos(dueno.user_id), hoy));
 }
+
+// Lo que le puedes pedir al bot cuando quieras. Telegram los muestra en el menú al escribir "/".
+const COMANDOS: Record<string, (datos: Datos, hoy: string) => string> = {
+  '/resumen': (datos, hoy) => resumen(datos, hoy, sumarDias(hoy, -6), 'Tus últimos 7 días'),
+  '/mes': (datos, hoy) => resumen(datos, hoy, hoy.slice(0, 8) + '01', 'Tu mes hasta hoy'),
+  '/pagos': pagos,
+  '/racha': racha,
+  '/ayuda': () => AYUDA,
+  '/help': () => AYUDA,
+};
+
+const MENU = [
+  { command: 'resumen', description: 'Cómo te fue en los últimos 7 días' },
+  { command: 'mes', description: 'Cómo vas en este mes' },
+  { command: 'pagos', description: 'Lo que debes y lo que te deben' },
+  { command: 'racha', description: 'Cuántos días seguidos llevas' },
+  { command: 'ayuda', description: 'Qué le puedo pedir al bot' },
+];
+
+const AYUDA =
+  '🤖 <b>Esto me puedes pedir:</b>\n\n' +
+  MENU.map((c) => `/${c.command} — ${c.description}`).join('\n') +
+  '\n\nAdemás, cada noche te aviso si no has registrado nada y cada domingo te mando tu semana.';
 
 // Le dice a Telegram que mande los mensajes del bot a esta función. Se corre una vez.
 async function configurar() {
   const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/kashiki-bot`;
   const respuesta = await telegram('setWebhook', { url, secret_token: SECRETO, allowed_updates: ['message'] });
-  return { webhook: respuesta.ok, bot: await nombreDelBot() };
+  const menu = await telegram('setMyCommands', { commands: MENU });
+  return { webhook: respuesta.ok, menu: menu.ok, bot: await nombreDelBot() };
 }
 
 // ---------- Telegram ----------
@@ -279,7 +316,7 @@ function recordatorioDiario({ pendientes, activos }: Datos, hoy: string) {
     const racha = contarRacha(activos, sumarDias(hoy, -1));
     partes.push(
       racha > 0
-        ? `🔥 Llevas <b>${racha} ${racha === 1 ? 'día' : 'días'} seguidos</b> registrando tu dinero.\n` +
+        ? `🔥 Llevas <b>${racha} ${racha === 1 ? 'día seguido' : 'días seguidos'}</b> registrando tu dinero.\n` +
             'Hoy todavía no anotas nada: entra antes de dormir para no perder tu racha.'
         : '📝 Hoy no has registrado nada en Kashiki. ¡Empieza una racha nueva!'
     );
@@ -290,13 +327,20 @@ function recordatorioDiario({ pendientes, activos }: Datos, hoy: string) {
 }
 
 // Cada domingo en la noche: resume los últimos 7 días.
-function resumenSemanal({ movimientos, metas, pendientes, activos }: Datos, hoy: string) {
-  const inicio = sumarDias(hoy, -6);
+function resumenSemanal(datos: Datos, hoy: string) {
+  return resumen(datos, hoy, sumarDias(hoy, -6), 'Tu semana en Kashiki');
+}
+
+// Resume desde "inicio" hasta hoy: con cuánto empezaste, cuánto generaste, gastaste y con cuánto vas.
+function resumen({ movimientos, metas, pendientes, activos }: Datos, hoy: string, inicio: string, titulo: string) {
+  const totalDias = diasEntre(inicio, hoy) + 1;
   const antes = movimientos.filter((m) => m.fecha < inicio);
   const semana = movimientos.filter((m) => m.fecha >= inicio && m.fecha <= hoy);
 
-  const inicial = antes.reduce((t, m) => t + efecto(m), 0);
-  const final = inicial + semana.reduce((t, m) => t + efecto(m), 0);
+  // El saldo inicial no es dinero que generaste: cuenta como lo que ya tenías al empezar.
+  const esSaldoInicial = (m: Movimiento) => m.tipo === 'ingreso' && m.categoria === SALDO_INICIAL;
+  const inicial = antes.reduce((t, m) => t + efecto(m), 0) + sumar(semana.filter(esSaldoInicial));
+  const final = antes.reduce((t, m) => t + efecto(m), 0) + semana.reduce((t, m) => t + efecto(m), 0);
   const generado = sumar(semana.filter((m) => m.tipo === 'ingreso' && m.categoria !== SALDO_INICIAL));
   const gastado = sumar(semana.filter((m) => m.tipo === 'gasto'));
   const apartado = sumar(semana.filter((m) => m.tipo === 'ahorro'));
@@ -309,11 +353,11 @@ function resumenSemanal({ movimientos, metas, pendientes, activos }: Datos, hoy:
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  const diasRegistrados = [0, 1, 2, 3, 4, 5, 6].filter((i) => activos.has(sumarDias(inicio, i))).length;
-  const racha = contarRacha(activos, activos.has(hoy) ? hoy : sumarDias(hoy, -1));
+  const diasRegistrados = Array.from({ length: totalDias }, (_, i) => sumarDias(inicio, i)).filter((d) => activos.has(d)).length;
+  const racha = rachaActual(activos, hoy);
 
   const lineas = [
-    `📊 <b>Tu semana en Kashiki</b>`,
+    `📊 <b>${titulo}</b>`,
     `${fechaCorta(inicio)} – ${fechaCorta(hoy)}`,
     '',
     `🏁 Empezaste con: <b>${pesos(inicial)}</b>`,
@@ -321,7 +365,7 @@ function resumenSemanal({ movimientos, metas, pendientes, activos }: Datos, hoy:
     `💸 Gastaste: <b>−${pesos(gastado)}</b>`,
   ];
   if (apartado > 0) lineas.push(`🎯 Apartaste para metas: <b>${pesos(apartado)}</b>`);
-  lineas.push(`🏦 Terminaste con: <b>${pesos(final)}</b> (${final - inicial >= 0 ? '+' : ''}${pesos(final - inicial)})`);
+  lineas.push(`🏦 Vas en: <b>${pesos(final)}</b> (${final - inicial >= 0 ? '+' : ''}${pesos(final - inicial)})`);
 
   if (top.length > 0) {
     lineas.push('', '<b>En qué gastaste más</b>');
@@ -349,7 +393,35 @@ function resumenSemanal({ movimientos, metas, pendientes, activos }: Datos, hoy:
     meDeben.forEach((p) => lineas.push(lineaPago(p, hoy)));
   }
 
-  lineas.push('', `🔥 Racha: <b>${racha} ${racha === 1 ? 'día' : 'días'}</b> · Registraste ${diasRegistrados} de 7 días`);
+  lineas.push('', `🔥 Racha: <b>${racha} ${racha === 1 ? 'día' : 'días'}</b> · Registraste ${diasRegistrados} de ${totalDias} días`);
   lineas.push('', URL_APP);
   return lineas.join('\n');
+}
+
+// /pagos: todo lo pendiente, sin importar la fecha.
+function pagos({ pendientes }: Datos, hoy: string) {
+  const debo = pagosHasta(pendientes, 'debo', '9999-12-31');
+  const meDeben = pagosHasta(pendientes, 'me-deben', '9999-12-31');
+  if (debo.length === 0 && meDeben.length === 0) return '✨ No tienes pagos pendientes: ni debes ni te deben.';
+  const partes = [];
+  if (debo.length > 0) {
+    partes.push(`📌 <b>Debes ${pesos(sumar(debo))}</b>\n` + debo.map((p) => lineaPago(p, hoy)).join('\n'));
+  }
+  if (meDeben.length > 0) {
+    partes.push(`💬 <b>Te deben ${pesos(sumar(meDeben))}</b>\n` + meDeben.map((p) => lineaPago(p, hoy)).join('\n'));
+  }
+  return partes.join('\n\n');
+}
+
+// /racha: cuántos días seguidos llevas y si hoy ya cuenta.
+function racha({ activos }: Datos, hoy: string) {
+  const dias = rachaActual(activos, hoy);
+  const texto = `🔥 Llevas <b>${dias} ${dias === 1 ? 'día seguido' : 'días seguidos'}</b> registrando tu dinero.`;
+  if (activos.has(hoy)) return `${texto}\nHoy ya cuenta ✅`;
+  return `${texto}\nHoy todavía no anotas nada: entra antes de dormir para no perderla.\n\n${URL_APP}`;
+}
+
+// Si hoy no has registrado, la racha que cuenta es la que llevabas hasta ayer.
+function rachaActual(activos: Set<string>, hoy: string) {
+  return contarRacha(activos, activos.has(hoy) ? hoy : sumarDias(hoy, -1));
 }
