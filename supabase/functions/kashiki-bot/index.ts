@@ -21,7 +21,19 @@ const MINUTOS_CODIGO = 30;
 const TOKEN = Deno.env.get('TELEGRAM_TOKEN') ?? '';
 const SECRETO = Deno.env.get('BOT_SECRETO') ?? '';
 // db usa la llave de servicio: se salta las reglas RLS, por eso cada consulta filtra por user_id a mano.
-const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+const db = createClient(Deno.env.get('SUPABASE_URL')!, llaveDeServicio());
+
+// Los proyectos nuevos traen la llave en SUPABASE_SECRET_KEYS; los viejos en SUPABASE_SERVICE_ROLE_KEY.
+function llaveDeServicio() {
+  try {
+    const llaves = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}');
+    const primera = llaves.default ?? Object.values(llaves)[0];
+    if (primera) return String(primera);
+  } catch {
+    // no venía en ese formato; usamos la otra
+  }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
