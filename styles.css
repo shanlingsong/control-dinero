@@ -151,6 +151,35 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
   flex-shrink: 0;
 }
 
+.boton-icono[hidden] { display: none; }
+
+/* Botón "Entrar" cuando no hay cuenta */
+.pastilla-entrar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  border: 1px solid var(--acento);
+  background: transparent;
+  color: var(--acento);
+  border-radius: 999px;
+  padding: 6px 12px 6px 9px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.pastilla-entrar .ti { font-size: 1.05rem; }
+.pastilla-entrar[hidden] { display: none; }
+
+/* Hoja de iniciar sesión */
+.login-arriba { display: grid; justify-items: center; text-align: center; gap: 4px; }
+.login-mascota { width: 96px; margin-bottom: 4px; }
+.error-texto { margin: 0; color: var(--negativo); font-size: 0.85rem; }
+.error-texto[hidden] { display: none; }
+.segmentos[hidden], .etiqueta[hidden] { display: none; }
+.cuenta { display: grid; gap: 8px; justify-items: start; }
+.cuenta[hidden] { display: none; }
+.cuenta p { margin: 0; display: flex; align-items: center; gap: 6px; }
+
 main {
   max-width: 560px;
   margin: 0 auto;

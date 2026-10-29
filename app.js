@@ -1,5 +1,5 @@
-// Mi Dinero: registra ingresos, gastos y ahorros, lleva tus metas, tu racha y tus pagos pendientes,
-// y lo guarda todo en el teléfono y en la nube (Google Sheets).
+// Kashiki: registra ingresos, gastos y ahorros, lleva tus metas, tu racha y tus pagos pendientes.
+// Sin cuenta todo vive en el teléfono; con cuenta se guarda también en la nube (Supabase).
 
 // Categorías disponibles para cada tipo de movimiento. Puedes agregar o quitar las que quieras.
 const CATEGORIAS = {
@@ -43,10 +43,11 @@ const CLAVES = {
   dias: 'mi-dinero:dias', // días marcados con "hoy no tuve movimientos"
   pendientes: 'mi-dinero:pagos', // pagos que debo o que me deben
 };
-const CLAVE_NUBE = 'mi-dinero:nube';
 const CLAVE_PENDIENTES = 'mi-dinero:pendientes';
-const CLAVE_IA = 'mi-dinero:ia';
 const CLAVE_PERFIL = 'mi-dinero:perfil';
+const CLAVE_DUENO = 'mi-dinero:dueno'; // id de la cuenta a la que pertenecen los datos de este teléfono
+const CLAVE_SHEETS = 'mi-dinero:nube'; // conexión vieja con Google Sheets, solo para pasar los datos a la cuenta
+const CLAVE_SHEETS_PASADO = 'mi-dinero:sheets-pasado';
 
 const $ = (selector) => document.querySelector(selector);
 const dinero = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
@@ -58,7 +59,6 @@ const datos = {
   dias: leer(CLAVES.dias, []),
   pendientes: leer(CLAVES.pendientes, []),
 };
-let nube = leer(CLAVE_NUBE, null); // { url, clave } o null si no está conectada
 let pendientes = leer(CLAVE_PENDIENTES, []); // cambios que aún no se suben a la nube
 let perfil = leer(CLAVE_PERFIL, { nombre: '', foto: '' });
 
@@ -156,22 +156,50 @@ function vibrar() {
   } catch {}
 }
 
-// ---------- Nube ----------
+// ---------- Nube: cuentas y datos de cada usuario (Supabase) ----------
 
-// Manda una petición al servidor de Google. Se usa texto simple para que el navegador lo permita.
-async function llamarNube(peticion) {
-  const respuesta = await fetch(nube.url, {
-    method: 'POST',
-    body: JSON.stringify({ ...peticion, clave: nube.clave }),
-  });
-  const resultado = await respuesta.json();
-  if (resultado.error) throw new Error(resultado.error);
-  return resultado;
+// Datos públicos del proyecto: pueden ir dentro de la app. Lo que protege los datos son las reglas
+// de la base de datos (supabase/esquema.sql): cada cuenta solo puede ver y tocar lo suyo.
+const SUPABASE_URL = 'https://bzaawjfvzkfhusdtvnia.supabase.co';
+const SUPABASE_LLAVE = 'sb_publishable_7wDFI4hA9KS4uXX1kTtF_Q_caUEGt2Q';
+// Si al abrir no hay internet, la librería no carga y la app sigue funcionando solo en el teléfono.
+const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_LLAVE) : null;
+
+// Columnas de cada tabla; el resto de un objeto no se manda.
+const COLUMNAS = {
+  movimientos: ['id', 'tipo', 'monto', 'categoria', 'nota', 'fecha', 'creado', 'meta'],
+  metas: ['id', 'nombre', 'objetivo', 'creado'],
+  dias: ['id', 'creado'],
+  pendientes: ['id', 'tipo', 'persona', 'monto', 'fecha', 'nota', 'creado'],
+};
+const COLUMNAS_NUMERO = ['monto', 'objetivo', 'creado'];
+
+let cuenta = null; // el usuario con sesión iniciada, o null
+
+function aFila(nombre, objeto) {
+  const fila = { user_id: cuenta.id };
+  for (const columna of COLUMNAS[nombre]) fila[columna] = objeto[columna] ?? '';
+  return fila;
+}
+
+function deFila(nombre, fila) {
+  const objeto = {};
+  for (const columna of COLUMNAS[nombre]) {
+    objeto[columna] = COLUMNAS_NUMERO.includes(columna) ? Number(fila[columna]) : (fila[columna] ?? '');
+  }
+  return objeto;
+}
+
+async function mandarCambio(cambio) {
+  const tabla = db.from(cambio.coleccion);
+  const { error } =
+    cambio.accion === 'agregar' ? await tabla.upsert(aFila(cambio.coleccion, cambio.objeto)) : await tabla.delete().eq('id', cambio.id);
+  if (error) throw error;
 }
 
 // Guarda un cambio para subirlo; si no hay internet, se queda en la fila y se reintenta después.
 function encolar(cambio) {
-  if (!nube) return;
+  if (!cuenta) return;
   pendientes.push(cambio);
   escribir(CLAVE_PENDIENTES, pendientes);
 }
@@ -179,28 +207,27 @@ function encolar(cambio) {
 let sincronizando = false;
 
 async function sincronizar() {
-  if (!nube || sincronizando) return;
+  if (!cuenta || !db || sincronizando) return;
   sincronizando = true;
   mostrarEstado('ti-refresh', 'Sincronizando…');
   try {
     // 1. Sube los cambios pendientes, en orden.
     while (pendientes.length > 0) {
-      await llamarNube(pendientes[0]);
+      await mandarCambio(pendientes[0]);
       pendientes.shift();
       escribir(CLAVE_PENDIENTES, pendientes);
     }
     // 2. Descarga todo: la nube es la fuente de verdad.
-    const respuesta = await llamarNube({ accion: 'listar' });
-    for (const nombre of Object.keys(CLAVES)) {
-      if (respuesta[nombre]) {
-        datos[nombre] = respuesta[nombre];
-        guardarColeccion(nombre);
-      }
-    }
-    escribir(CLAVE_IA, Boolean(respuesta.ia));
-    mostrarIA();
+    const nombres = Object.keys(CLAVES);
+    const respuestas = await Promise.all(nombres.map((nombre) => db.from(nombre).select(COLUMNAS[nombre].join(','))));
+    const fallo = respuestas.find((r) => r.error);
+    if (fallo) throw fallo.error;
+    nombres.forEach((nombre, i) => {
+      datos[nombre] = respuestas[i].data.map((fila) => deFila(nombre, fila));
+      guardarColeccion(nombre);
+    });
     dibujar();
-    mostrarEstado('ti-cloud-check', 'Guardado en la nube');
+    mostrarEstado('ti-cloud-check', 'Guardado en tu cuenta');
   } catch (error) {
     mostrarEstado('ti-cloud-off', explicarError(error), true);
   } finally {
@@ -208,11 +235,13 @@ async function sincronizar() {
   }
 }
 
-// Un TypeError de fetch significa que no hubo respuesta: o no hay internet, o la dirección del servidor está mal.
 function explicarError(error) {
-  if (!(error instanceof TypeError || error instanceof SyntaxError)) return 'Error de la nube: ' + error.message;
+  const mensaje = String(error?.message || error);
   if (!navigator.onLine) return 'Sin internet: tus cambios se subirán cuando vuelva la conexión';
-  return 'No responde el servidor. Revisa en ajustes que la dirección termine en /exec';
+  if (/fetch|network/i.test(mensaje)) return 'No se pudo conectar con la nube. Se reintentará solo.';
+  if (/does not exist|Could not find the table/i.test(mensaje)) return 'Faltan las tablas en Supabase (supabase/esquema.sql)';
+  if (/JWT|expired/i.test(mensaje)) return 'Tu sesión expiró. Vuelve a entrar.';
+  return 'Error de la nube: ' + mensaje;
 }
 
 function mostrarEstado(icono, texto, problema = false) {
@@ -1268,7 +1297,7 @@ $('#form-pago').addEventListener('submit', (evento) => {
     creado: Date.now(),
   });
   cerrarHoja($('#hoja-pago'));
-  avisar(nube ? 'Anotado. Te lo recordaré por Telegram un día antes.' : 'Anotado.');
+  avisar('Anotado.');
 });
 
 // ---------- Secciones ----------
@@ -1311,6 +1340,7 @@ $('#pastilla-racha').addEventListener('click', () => mostrarVista('racha'));
 
 const abridores = {
   movimiento: () => abrirFormulario(),
+  login: () => abrirLogin(),
   meta: () => {
     $('#form-meta').reset();
     abrirHoja($('#hoja-meta'));
@@ -1367,40 +1397,238 @@ $('#mes').addEventListener('change', dibujarMes);
 
 // ---------- IA: escribir en lenguaje normal ----------
 
-// La caja solo aparece si la nube está conectada y el servidor tiene la llave de la API.
+// Se queda oculta hasta que la IA se mude a Supabase (antes vivía en el servidor de Google Sheets).
 function mostrarIA() {
-  $('#form-ia').hidden = !(nube && leer(CLAVE_IA, false));
+  $('#form-ia').hidden = true;
 }
 
-$('#form-ia').addEventListener('submit', async (evento) => {
+// ---------- Cuenta: iniciar sesión, crear cuenta, cerrar sesión ----------
+
+let modoLogin = 'entrar'; // entrar | crear | nueva (poner contraseña nueva después de recuperarla)
+const TEXTOS_LOGIN = {
+  entrar: { titulo: 'Entra a tu cuenta', boton: 'Entrar' },
+  crear: { titulo: 'Crea tu cuenta', boton: 'Crear cuenta' },
+  nueva: { titulo: 'Pon tu contraseña nueva', boton: 'Guardar contraseña' },
+};
+
+function abrirLogin(modo = 'entrar') {
+  if (!db) {
+    avisar('Necesitas internet para entrar a tu cuenta');
+    return;
+  }
+  modoLogin = modo;
+  $('#form-login').reset();
+  pintarLogin();
+  abrirHoja($('#hoja-login'));
+}
+
+function pintarLogin() {
+  const form = $('#form-login');
+  $('#login-titulo').textContent = TEXTOS_LOGIN[modoLogin].titulo;
+  $('#login-enviar').textContent = TEXTOS_LOGIN[modoLogin].boton;
+  $('#login-pestanas').hidden = modoLogin === 'nueva';
+  $('#campo-correo').hidden = modoLogin === 'nueva';
+  $('#olvide').hidden = modoLogin !== 'entrar';
+  form.contrasena.autocomplete = modoLogin === 'entrar' ? 'current-password' : 'new-password';
+  document.querySelectorAll('[data-modo-login]').forEach((b) => b.classList.toggle('activo', b.dataset.modoLogin === modoLogin));
+  mostrarErrorLogin('');
+}
+
+function mostrarErrorLogin(texto, esBueno = false) {
+  const p = $('#login-error');
+  p.textContent = texto;
+  p.hidden = !texto;
+  p.style.color = esBueno ? 'var(--positivo)' : '';
+}
+
+// Los errores de Supabase vienen en inglés; aquí se traducen a algo entendible.
+function traducirError(error) {
+  const mensaje = String(error?.message || error);
+  if (/Invalid login credentials/i.test(mensaje)) return 'Correo o contraseña incorrectos.';
+  if (/already registered|already been registered/i.test(mensaje)) return 'Ya existe una cuenta con ese correo. Inicia sesión.';
+  if (/Email not confirmed/i.test(mensaje)) return 'Primero confirma tu correo: revisa tu bandeja de entrada.';
+  if (/at least 6|Password should/i.test(mensaje)) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (/rate limit|too many/i.test(mensaje)) return 'Demasiados intentos. Espera unos minutos.';
+  if (/invalid.*email|email.*invalid/i.test(mensaje)) return 'Ese correo no parece válido.';
+  if (/fetch|network/i.test(mensaje)) return 'Sin conexión. Revisa tu internet.';
+  return mensaje;
+}
+
+for (const boton of document.querySelectorAll('[data-modo-login]')) {
+  boton.addEventListener('click', () => {
+    modoLogin = boton.dataset.modoLogin;
+    pintarLogin();
+  });
+}
+
+$('#form-login').addEventListener('submit', async (evento) => {
   evento.preventDefault();
   const form = evento.target;
-  const boton = form.querySelector('button');
+  const correo = form.correo.value.trim();
+  const contrasena = form.contrasena.value;
+  if (modoLogin !== 'nueva' && !/^\S+@\S+\.\S+$/.test(correo)) return mostrarErrorLogin('Escribe tu correo.');
+  if (contrasena.length < 6) return mostrarErrorLogin('La contraseña debe tener al menos 6 caracteres.');
+
+  const boton = $('#login-enviar');
   boton.disabled = true;
-  boton.innerHTML = '<i class="ti ti-loader-2" aria-hidden="true"></i>';
+  boton.textContent = 'Un momento…';
   try {
-    const { movimiento } = await llamarNube({
-      accion: 'interpretar',
-      texto: form.texto.value,
-      categorias: { gasto: categoriasDe('gasto'), ingreso: categoriasDe('ingreso') },
-      hoy: hoy(),
-    });
-    form.reset();
-    abrirFormulario(movimiento);
+    if (modoLogin === 'entrar') {
+      const { error } = await db.auth.signInWithPassword({ email: correo, password: contrasena });
+      if (error) throw error;
+    } else if (modoLogin === 'crear') {
+      const { data, error } = await db.auth.signUp({ email: correo, password: contrasena });
+      if (error) throw error;
+      // Si Supabase pide confirmar el correo, todavía no hay sesión.
+      if (!data.session) {
+        mostrarErrorLogin('Te mandamos un correo para confirmar tu cuenta. Ábrelo y luego inicia sesión.', true);
+        return;
+      }
+    } else {
+      const { error } = await db.auth.updateUser({ password: contrasena });
+      if (error) throw error;
+      avisar('Contraseña actualizada');
+    }
+    cerrarHoja($('#hoja-login'));
+    vibrar();
   } catch (error) {
-    avisar(explicarError(error));
+    mostrarErrorLogin(traducirError(error));
   } finally {
     boton.disabled = false;
-    boton.innerHTML = '<i class="ti ti-arrow-up" aria-hidden="true"></i>';
+    boton.textContent = TEXTOS_LOGIN[modoLogin].boton;
   }
 });
 
-// ---------- Ajustes: perfil, nube y respaldo ----------
+$('#olvide').addEventListener('click', async () => {
+  const correo = $('#form-login').correo.value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(correo)) return mostrarErrorLogin('Escribe tu correo y vuelve a tocar "¿Olvidaste tu contraseña?".');
+  const { error } = await db.auth.resetPasswordForEmail(correo, { redirectTo: location.origin + location.pathname });
+  if (error) mostrarErrorLogin(traducirError(error));
+  else mostrarErrorLogin('Te mandamos un correo con un enlace para poner una contraseña nueva.', true);
+});
+
+$('#boton-entrar').addEventListener('click', () => abrirLogin());
+
+// Cambia la pantalla según haya o no sesión, y prepara los datos de esa cuenta.
+function ponerCuenta(usuario) {
+  const anterior = cuenta?.id;
+  cuenta = usuario;
+  $('#boton-entrar').hidden = Boolean(cuenta);
+  $('#abrir-ajustes').hidden = !cuenta;
+  $('#cuenta-con-sesion').hidden = !cuenta;
+  $('#cuenta-sin-sesion').hidden = Boolean(cuenta);
+  $('#cuenta-correo').textContent = cuenta?.email || '';
+  $('#traer-sheets').hidden = !(cuenta && leer(CLAVE_SHEETS, null) && !leer(CLAVE_SHEETS_PASADO, false));
+  if (!cuenta) {
+    mostrarEstado('ti-device-mobile', 'Sin cuenta: tus datos solo están en este teléfono');
+    return;
+  }
+  if (anterior === cuenta.id) return;
+  return alEntrar();
+}
+
+const hayDatosLocales = () => Object.keys(CLAVES).reduce((t, nombre) => t + datos[nombre].length, 0);
+
+function borrarDatosLocales() {
+  for (const nombre of Object.keys(CLAVES)) {
+    datos[nombre] = [];
+    guardarColeccion(nombre);
+  }
+  pendientes = [];
+  escribir(CLAVE_PENDIENTES, pendientes);
+}
+
+// Al entrar: si los datos del teléfono no son de nadie, se pregunta si se suben a la cuenta;
+// si son de otra cuenta, se quitan para no mezclar el dinero de dos personas.
+function alEntrar() {
+  const dueno = leer(CLAVE_DUENO, null);
+  if (dueno === cuenta.id) return sincronizar();
+  if (dueno) borrarDatosLocales();
+  const total = hayDatosLocales();
+  if (!dueno && total > 0) {
+    $('#subir-texto').textContent = `En este teléfono hay ${total} ${total === 1 ? 'registro' : 'registros'} (movimientos, metas, racha y pagos). ¿Los guardamos en tu cuenta para no perderlos?`;
+    abrirHoja($('#hoja-subir'));
+    return;
+  }
+  escribir(CLAVE_DUENO, cuenta.id);
+  return sincronizar();
+}
+
+$('#form-subir').addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  for (const nombre of Object.keys(CLAVES)) {
+    for (const objeto of datos[nombre]) encolar({ accion: 'agregar', coleccion: nombre, objeto });
+  }
+  escribir(CLAVE_DUENO, cuenta.id);
+  cerrarHoja($('#hoja-subir'));
+  sincronizar();
+  avisar('Subiendo tus datos a tu cuenta…');
+});
+
+$('#subir-no').addEventListener('click', () => {
+  borrarDatosLocales();
+  escribir(CLAVE_DUENO, cuenta.id);
+  cerrarHoja($('#hoja-subir'));
+  dibujar();
+  sincronizar();
+});
+
+$('#cerrar-sesion').addEventListener('click', async () => {
+  await db.auth.signOut();
+  // Lo de esta cuenta se quita del teléfono; sigue guardado en la nube.
+  borrarDatosLocales();
+  escribir(CLAVE_DUENO, null);
+  ponerCuenta(null);
+  dibujar();
+  cerrarHoja($('#hoja-ajustes'));
+  avisar('Cerraste sesión. Tus datos siguen guardados en tu cuenta.');
+});
+
+// Pasa a la cuenta lo que había en la hoja de Google Sheets (de la versión anterior de la app).
+$('#traer-sheets').addEventListener('click', async () => {
+  const sheets = leer(CLAVE_SHEETS, null);
+  const boton = $('#traer-sheets');
+  boton.disabled = true;
+  try {
+    const respuesta = await fetch(sheets.url, { method: 'POST', body: JSON.stringify({ accion: 'listar', clave: sheets.clave }) });
+    const deSheets = await respuesta.json();
+    if (deSheets.error) throw new Error(deSheets.error);
+    let traidos = 0;
+    for (const nombre of Object.keys(CLAVES)) {
+      const existentes = new Set(datos[nombre].map((x) => x.id));
+      for (const objeto of deSheets[nombre] || []) {
+        if (existentes.has(objeto.id)) continue;
+        datos[nombre].push(objeto);
+        encolar({ accion: 'agregar', coleccion: nombre, objeto });
+        traidos++;
+      }
+      guardarColeccion(nombre);
+    }
+    escribir(CLAVE_SHEETS_PASADO, true);
+    boton.hidden = true;
+    dibujar();
+    sincronizar();
+    avisar(`Listo: ${traidos} ${traidos === 1 ? 'registro pasó' : 'registros pasaron'} de Google Sheets a tu cuenta`);
+  } catch (error) {
+    avisar('No se pudo leer Google Sheets: ' + traducirError(error));
+  } finally {
+    boton.disabled = false;
+  }
+});
+
+async function iniciarCuenta() {
+  const { data } = await db.auth.getSession();
+  db.auth.onAuthStateChange((evento, sesion) => {
+    if (evento === 'PASSWORD_RECOVERY') abrirLogin('nueva');
+    else if (evento === 'SIGNED_IN' || evento === 'SIGNED_OUT') ponerCuenta(sesion?.user ?? null);
+  });
+  await ponerCuenta(data.session?.user ?? null);
+}
+
+// ---------- Ajustes: perfil, cuenta y respaldo ----------
 
 function abrirAjustes() {
   const form = $('#form-ajustes');
-  form.url.value = nube?.url || '';
-  form.clave.value = nube?.clave || '';
   form.nombre.value = perfil.nombre;
   dibujarEncabezado();
   abrirHoja($('#hoja-ajustes'));
@@ -1525,26 +1753,7 @@ $('#quitar-foto').addEventListener('click', () => {
 
 $('#form-ajustes').addEventListener('submit', (evento) => {
   evento.preventDefault();
-  const form = evento.target;
-  const estabaConectada = Boolean(nube);
-  nube = form.url.value.trim() ? { url: form.url.value.trim(), clave: form.clave.value } : null;
-  escribir(CLAVE_NUBE, nube);
   cerrarHoja($('#hoja-ajustes'));
-
-  if (!nube) {
-    pendientes = [];
-    escribir(CLAVE_PENDIENTES, pendientes);
-    mostrarIA();
-    mostrarEstado('ti-device-mobile', 'Solo en este teléfono. Conecta la nube en ajustes.');
-    return;
-  }
-  // La primera vez, sube lo que ya había en el teléfono.
-  if (!estabaConectada) {
-    for (const nombre of Object.keys(CLAVES)) {
-      for (const objeto of datos[nombre]) encolar({ accion: 'agregar', coleccion: nombre, objeto });
-    }
-  }
-  sincronizar();
 });
 
 $('#exportar').addEventListener('click', () => {
@@ -1635,11 +1844,11 @@ dibujar();
 mostrarIA();
 mostrarVista(leer('mi-dinero:vista', 'dinero'));
 progresoCarga(55);
-if (nube) {
+if (db) {
   setTimeout(() => progresoCarga(80), 400);
-  Promise.resolve(sincronizar()).finally(terminarCarga);
+  iniciarCuenta().catch(() => ponerCuenta(null)).finally(terminarCarga);
 } else {
-  mostrarEstado('ti-device-mobile', 'Solo en este teléfono. Conecta la nube en ajustes.');
+  ponerCuenta(null);
   terminarCarga();
 }
 setTimeout(terminarCarga, 5000); // por si la nube tarda mucho, no te deja esperando

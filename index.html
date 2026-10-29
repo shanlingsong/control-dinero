@@ -38,7 +38,9 @@
     <button type="button" id="pastilla-racha" class="pastilla-racha" aria-label="Ver tu racha">
       <i class="ti ti-flame" aria-hidden="true"></i><b id="racha-mini">0</b>
     </button>
-    <button type="button" id="abrir-ajustes" class="boton-icono" aria-label="Ajustes"><i class="ti ti-settings" aria-hidden="true"></i></button>
+    <!-- Sin cuenta: "Entrar". Con cuenta: el engrane de ajustes. -->
+    <button type="button" id="boton-entrar" class="pastilla-entrar"><i class="ti ti-login-2" aria-hidden="true"></i>Entrar</button>
+    <button type="button" id="abrir-ajustes" class="boton-icono" aria-label="Ajustes" hidden><i class="ti ti-settings" aria-hidden="true"></i></button>
   </header>
 
   <main>
@@ -275,7 +277,7 @@
     </form>
   </dialog>
 
-  <!-- Hoja: ajustes (perfil, nube y respaldo) -->
+  <!-- Hoja: ajustes (perfil, cuenta y respaldo) -->
   <dialog id="hoja-ajustes" class="hoja">
     <form id="form-ajustes">
       <div class="agarradera"></div>
@@ -293,14 +295,16 @@
         <input type="text" name="nombre" id="nombre" class="campo" placeholder="Shan" maxlength="20">
       </label>
 
-      <h2 class="separado">Guardar en la nube</h2>
-      <p class="suave pequeno">Pega la dirección de tu servidor de Google y la clave que inventaste. Los pasos están en <code>nube/INSTRUCCIONES.md</code>.</p>
-      <label class="etiqueta">Dirección del servidor
-        <input type="url" name="url" class="campo" placeholder="https://script.google.com/macros/s/.../exec">
-      </label>
-      <label class="etiqueta">Clave
-        <input type="password" name="clave" class="campo" autocomplete="off">
-      </label>
+      <h2 class="separado">Tu cuenta</h2>
+      <div id="cuenta-con-sesion" class="cuenta" hidden>
+        <p class="pequeno"><i class="ti ti-user-circle" aria-hidden="true"></i> <span id="cuenta-correo"></span></p>
+        <button type="button" id="traer-sheets" class="boton-secundario" hidden><i class="ti ti-table-import" aria-hidden="true"></i> Traer mis datos de Google Sheets</button>
+        <button type="button" id="cerrar-sesion" class="boton-secundario"><i class="ti ti-logout" aria-hidden="true"></i> Cerrar sesión</button>
+      </div>
+      <div id="cuenta-sin-sesion" class="cuenta">
+        <p class="suave pequeno">Sin cuenta, tus datos solo viven en este teléfono. Con cuenta se guardan en la nube y los ves en cualquier dispositivo.</p>
+        <button type="button" class="boton-secundario" data-abre="login"><i class="ti ti-login-2" aria-hidden="true"></i> Entrar o crear cuenta</button>
+      </div>
 
       <h2 class="separado">Respaldo</h2>
       <p class="suave pequeno">Un archivo con todo: movimientos, metas, racha y pagos. Al restaurarlo se agregan los que falten.</p>
@@ -312,8 +316,45 @@
       </div>
 
       <div class="acciones">
-        <button type="button" class="boton-secundario" data-cierra>Cancelar</button>
-        <button type="submit" class="boton-grande">Guardar</button>
+        <button type="button" class="boton-grande" data-cierra>Listo</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Hoja: iniciar sesión o crear cuenta -->
+  <dialog id="hoja-login" class="hoja">
+    <form id="form-login" novalidate>
+      <div class="agarradera"></div>
+      <div class="login-arriba">
+        <img src="marca/kashiki.png" alt="" class="login-mascota">
+        <h2 id="login-titulo">Entra a tu cuenta</h2>
+        <p id="login-texto" class="suave pequeno">Cada cuenta tiene su propio dinero, metas, racha y pagos. Nadie más puede verlos.</p>
+      </div>
+      <div class="segmentos" id="login-pestanas" role="group" aria-label="Elegir">
+        <button type="button" data-modo-login="entrar" class="activo">Iniciar sesión</button>
+        <button type="button" data-modo-login="crear">Crear cuenta</button>
+      </div>
+      <label class="etiqueta" id="campo-correo">Correo
+        <input type="email" name="correo" class="campo" autocomplete="email" placeholder="tu@correo.com">
+      </label>
+      <label class="etiqueta">Contraseña
+        <input type="password" name="contrasena" class="campo" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+      </label>
+      <p id="login-error" class="error-texto" hidden></p>
+      <button type="submit" id="login-enviar" class="boton-grande">Entrar</button>
+      <button type="button" id="olvide" class="boton-texto">¿Olvidaste tu contraseña?</button>
+    </form>
+  </dialog>
+
+  <!-- Hoja: subir lo que ya había en este teléfono al entrar por primera vez -->
+  <dialog id="hoja-subir" class="hoja">
+    <form id="form-subir">
+      <div class="agarradera"></div>
+      <h2>¿Subimos lo de este teléfono?</h2>
+      <p id="subir-texto" class="suave"></p>
+      <div class="acciones">
+        <button type="button" id="subir-no" class="boton-secundario">No, empezar limpio</button>
+        <button type="submit" class="boton-grande">Sí, subirlo</button>
       </div>
     </form>
   </dialog>
@@ -339,6 +380,7 @@
 
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
