@@ -140,7 +140,7 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 }
 .saludo { flex: 1; display: grid; min-width: 0; }
 .saludo strong { font-size: 1.05rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.saludo span { font-size: 0.78rem; color: var(--suave); }
+.saludo span { font-size: 0.78rem; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .avatar {
   width: 40px;
@@ -788,6 +788,34 @@ a.boton-secundario { text-decoration: none; }
 
 code { font-size: 0.8em; background: var(--fondo); padding: 1px 5px; border-radius: 5px; }
 
+/* ---------- Buscar movimientos ---------- */
+.buscador {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: var(--tarjeta);
+  border: 1px solid var(--linea);
+  border-radius: 14px;
+  padding: 0 12px;
+  color: var(--suave);
+  transition: border-color .2s;
+}
+.buscador:focus-within { border-color: var(--acento); }
+.buscador .ti { font-size: 1.15rem; }
+.buscador input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--texto);
+  font: inherit;
+  padding: 11px 0;
+  outline: none;
+}
+#buscar-filtros { flex-wrap: wrap; }
+#vista-buscar { max-width: 720px; }
 /* ---------- Partes que solo existen en la compu ---------- */
 .columna { display: contents; } /* en el teléfono es como si no existiera */
 .marca-lateral, .barra-secciones .agregar-lateral { display: none; }

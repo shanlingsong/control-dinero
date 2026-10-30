@@ -107,8 +107,10 @@ function aFecha(texto) {
 }
 
 // "2026-10-25" → "dom, 25 oct"
+// Si es de otro año, también dice el año (pasa al buscar en movimientos viejos).
 function fechaBonita(fecha) {
-  return aFecha(fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+  const otroAnio = !fecha.startsWith(hoy().slice(0, 4));
+  return aFecha(fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', year: otroAnio ? 'numeric' : undefined });
 }
 
 // Cuántos días faltan para una fecha (negativo si ya pasó).
@@ -628,6 +630,7 @@ function dibujarMes() {
   $('.pista-deslizar').hidden = delMes.length === 0;
 
   if (!$('#vista-detalle').hidden) dibujarDetalle();
+  if (!$('#vista-buscar').hidden) dibujarBusqueda();
 }
 
 // ---------- Detalle: ingresos, gastos o todos ----------
@@ -691,6 +694,90 @@ $('#volver').addEventListener('click', () => {
 });
 window.addEventListener('popstate', () => {
   if (!$('#vista-detalle').hidden) mostrarVista('dinero');
+  else if (!$('#vista-buscar').hidden) mostrarVista(vistaAntesDeBuscar);
+});
+
+// ---------- Buscar movimientos ----------
+// Busca en TODOS los meses. Cada palabra que escribas tiene que aparecer en el movimiento:
+// en la categoría, la nota, la meta, el monto o la fecha ("tacos octubre" = tacos de octubre).
+
+const busqueda = { texto: '', filtro: 'todos' };
+const MAXIMO_RESULTADOS = 200; // para que no se trabe si tienes muchísimos
+let vistaAntesDeBuscar = 'dinero';
+
+// "Café" → "cafe": así encuentra lo mismo con o sin acentos y mayúsculas.
+const sinAcentos = (texto) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+const NOMBRES_TIPO = { gasto: 'gasto gaste', ingreso: 'ingreso gane', ahorro: 'ahorro ahorre meta' };
+
+// Todo lo que se puede buscar de un movimiento, junto en un solo texto.
+function textoBuscable(m) {
+  const meta = m.meta ? datos.metas.find((x) => x.id === m.meta)?.nombre : '';
+  const fecha = aFecha(m.fecha).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return sinAcentos([m.categoria, m.nota, meta, NOMBRES_TIPO[m.tipo], m.monto, m.monto.toFixed(2), fecha].join(' '));
+}
+
+function abrirBusqueda() {
+  if ($('#vista-buscar').hidden) {
+    const actual = document.querySelector('.vista:not([hidden])')?.id.replace('vista-', '');
+    vistaAntesDeBuscar = actual === 'detalle' || !actual ? 'dinero' : actual;
+    history.pushState({ buscar: true }, '');
+  }
+  mostrarVista('buscar');
+  $('#buscar-texto').focus();
+}
+
+function dibujarBusqueda() {
+  const palabras = sinAcentos(busqueda.texto).split(/\s+/).filter(Boolean);
+  const encontrados = datos.movimientos
+    .filter((m) => busqueda.filtro === 'todos' || m.tipo === busqueda.filtro)
+    .filter((m) => {
+      const texto = textoBuscable(m);
+      return palabras.every((p) => texto.includes(p));
+    })
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.creado - a.creado);
+
+  document.querySelectorAll('[data-filtro]').forEach((b) => b.classList.toggle('activo', b.dataset.filtro === busqueda.filtro));
+
+  const gastado = sumar(encontrados.filter((m) => m.tipo === 'gasto'));
+  const ingresado = sumar(encontrados.filter(esIngresoReal));
+  const partes = [`${encontrados.length} ${encontrados.length === 1 ? 'movimiento' : 'movimientos'}`];
+  if (gastado > 0) partes.push(`gastaste ${dinero.format(gastado)}`);
+  if (ingresado > 0) partes.push(`ingresaste ${dinero.format(ingresado)}`);
+  if (encontrados.length > MAXIMO_RESULTADOS) partes.push(`se muestran los ${MAXIMO_RESULTADOS} más recientes`);
+  $('#buscar-resumen').textContent = palabras.length || busqueda.filtro !== 'todos' ? partes.join(' · ') : 'Todos tus movimientos, de cualquier mes.';
+
+  const vacioTexto = palabras.length ? `No encontré nada con "${busqueda.texto.trim()}".` : 'Aún no tienes movimientos.';
+  dibujarLista($('#buscar-lista'), encontrados.slice(0, MAXIMO_RESULTADOS), vacioTexto);
+}
+
+$('#abrir-buscar').addEventListener('click', abrirBusqueda);
+$('#buscar-texto').addEventListener('input', (e) => {
+  busqueda.texto = e.target.value;
+  dibujarBusqueda();
+});
+// En el teléfono, "Buscar" en el teclado lo esconde para que veas los resultados.
+$('#buscar-texto').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') e.target.blur();
+});
+for (const boton of document.querySelectorAll('[data-filtro]')) {
+  boton.addEventListener('click', () => {
+    busqueda.filtro = boton.dataset.filtro;
+    dibujarBusqueda();
+  });
+}
+$('#volver-buscar').addEventListener('click', () => {
+  if (history.state?.buscar) history.back();
+  else mostrarVista(vistaAntesDeBuscar);
+});
+// En la compu: Ctrl + K o "/" abre la búsqueda (como en muchas apps).
+document.addEventListener('keydown', (e) => {
+  if (document.querySelector('dialog[open]')) return;
+  const escribiendo = e.target.matches('input, textarea, select');
+  if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !escribiendo)) {
+    e.preventDefault();
+    abrirBusqueda();
+  }
 });
 
 let ultimoAgregado = null; // id del movimiento recién guardado, para animarlo al aparecer
@@ -1324,8 +1411,8 @@ function mostrarVista(nombre) {
   for (const vista of document.querySelectorAll('.vista')) {
     vista.hidden = vista.id !== `vista-${nombre}`;
   }
-  // El detalle es parte de la sección Dinero.
-  const seccion = nombre === 'detalle' ? 'dinero' : nombre;
+  // El detalle es parte de la sección Dinero; al buscar se queda marcada la sección de donde vienes.
+  const seccion = nombre === 'detalle' ? 'dinero' : nombre === 'buscar' ? vistaAntesDeBuscar : nombre;
   for (const boton of document.querySelectorAll('.barra-secciones [data-vista]')) {
     if (boton.dataset.vista === seccion) boton.setAttribute('aria-current', 'page');
     else boton.removeAttribute('aria-current');
@@ -1336,6 +1423,10 @@ function mostrarVista(nombre) {
   if (nombre === 'detalle') {
     dibujarDetalle();
     return; // no se guarda: al volver a abrir la app empieza en la pantalla principal
+  }
+  if (nombre === 'buscar') {
+    dibujarBusqueda();
+    return;
   }
   if (nombre === 'dinero') {
     $('#saldo').dataset.valor = 0;

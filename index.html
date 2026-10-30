@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -37,6 +37,7 @@
       <strong id="saludo">Hola</strong>
       <span id="fecha-hoy"></span>
     </div>
+    <button type="button" id="abrir-buscar" class="boton-icono" aria-label="Buscar movimientos"><i class="ti ti-search" aria-hidden="true"></i></button>
     <button type="button" id="pastilla-racha" class="pastilla-racha" aria-label="Ver tu racha">
       <i class="ti ti-flame" aria-hidden="true"></i><b id="racha-mini">0</b>
     </button>
@@ -146,6 +147,25 @@
       </div>
       <ul id="detalle-lista" class="lista"></ul>
       </div>
+    </section>
+
+    <!-- ========== Buscar: en todos tus movimientos, de cualquier mes ========== -->
+    <section id="vista-buscar" class="vista" hidden>
+      <div class="detalle-arriba">
+        <button type="button" id="volver-buscar" class="boton-icono" aria-label="Regresar"><i class="ti ti-arrow-left" aria-hidden="true"></i></button>
+        <label class="buscador">
+          <i class="ti ti-search" aria-hidden="true"></i>
+          <input type="search" id="buscar-texto" placeholder="Busca: tacos, Fran, 150, octubre…" autocomplete="off" enterkeyhint="search" aria-label="Buscar movimientos">
+        </label>
+      </div>
+      <div id="buscar-filtros" class="chips" role="group" aria-label="Qué buscar">
+        <button type="button" class="chip activo" data-filtro="todos">Todos</button>
+        <button type="button" class="chip" data-filtro="gasto">Gastos</button>
+        <button type="button" class="chip" data-filtro="ingreso">Ingresos</button>
+        <button type="button" class="chip" data-filtro="ahorro">Ahorros</button>
+      </div>
+      <p id="buscar-resumen" class="suave pequeno"></p>
+      <ul id="buscar-lista" class="lista"></ul>
     </section>
 
     <!-- ========== Sección: Metas ========== -->
@@ -400,6 +420,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=22"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>
