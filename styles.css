@@ -948,3 +948,7 @@ code { font-size: 0.8em; background: var(--fondo); padding: 1px 5px; border-radi
 }
 @keyframes centro-entra { from { opacity: 0; transform: scale(.95) translateY(10px); } }
 @keyframes centro-sale { to { opacity: 0; transform: scale(.96); } }
+
+/* El iPhone hace zoom solo al tocar un campo de texto con letra menor a 16px.
+   Con 16px exactos la pantalla se queda tal cual al escribir. */
+.campo, .buscador input, .selector-mes, .ia input { font-size: 16px; }
