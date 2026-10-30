@@ -1626,51 +1626,78 @@ const pedirAlBot = async (accion) => {
   return data;
 };
 
-function pintarTelegram(texto, conectado) {
-  $('#telegram-estado').textContent = texto;
+// Lo último que se supo (¿conectado o no?) se guarda en el teléfono, para pintar el botón
+// correcto al instante en lugar de esperar a que conteste Supabase.
+const CLAVE_TELEGRAM = 'mi-dinero:telegram';
+const MINUTOS_LINK = 25; // el código dura 30 en el servidor; se renueva un poco antes
+let linkTelegram = { url: '', hecho: 0 };
+let esperandoTelegram = false;
+
+function pintarTelegram(conectado) {
+  $('#telegram-estado').textContent = conectado
+    ? 'Telegram conectado: te aviso cada noche y los domingos'
+    : 'Recibe recordatorios y tu resumen semanal en Telegram';
   $('#telegram-conectar').hidden = conectado;
   $('#telegram-desconectar').hidden = !conectado;
-  $('#telegram-abrir').hidden = true;
 }
 
-// Si la función todavía no está publicada en Supabase, el bloque ni se muestra.
-async function revisarTelegram() {
-  if (!cuenta) return;
-  try {
-    const { conectado } = await pedirAlBot('estado');
-    $('#bloque-telegram').hidden = false;
-    pintarTelegram(
-      conectado ? 'Telegram conectado: te aviso cada noche y los domingos' : 'Recibe recordatorios y tu resumen semanal en Telegram',
-      conectado
-    );
-  } catch {
-    $('#bloque-telegram').hidden = true;
-  }
+function recordarTelegram(conectado) {
+  escribir(CLAVE_TELEGRAM, { cuenta: cuenta.id, conectado });
+  pintarTelegram(conectado);
 }
 
 // El link lleva un código de un solo uso; al picarle "Iniciar", el bot sabe que ese chat es de esta cuenta.
-$('#telegram-conectar').addEventListener('click', async () => {
-  const boton = $('#telegram-conectar');
-  boton.disabled = true;
+async function pedirLink() {
+  const { codigo, bot } = await pedirAlBot('codigo');
+  linkTelegram = { url: `https://t.me/${bot}?start=${codigo}`, hecho: Date.now() };
+  $('#telegram-conectar').href = linkTelegram.url;
+  return linkTelegram.url;
+}
+
+const linkVigente = () => linkTelegram.url && Date.now() - linkTelegram.hecho < MINUTOS_LINK * 60000;
+
+// Pinta al instante con lo recordado y luego confirma con Supabase. Si no estás conectado,
+// deja el link listo de una vez, para que el botón abra Telegram con un solo toque.
+async function revisarTelegram() {
+  if (!cuenta) return;
+  const recordado = leer(CLAVE_TELEGRAM, null);
+  pintarTelegram(recordado?.cuenta === cuenta.id && recordado.conectado);
   try {
-    const { codigo, bot } = await pedirAlBot('codigo');
-    const abrir = $('#telegram-abrir');
-    abrir.href = `https://t.me/${bot}?start=${codigo}`;
-    abrir.hidden = false;
-    boton.hidden = true;
-    $('#telegram-estado').textContent = 'Ábrelo, pícale "Iniciar" y regresa aquí';
+    const { conectado } = await pedirAlBot('estado');
+    if (!cuenta) return; // cerró sesión mientras tanto
+    recordarTelegram(conectado);
+    if (!conectado && !linkVigente()) await pedirLink();
+  } catch {
+    // sin internet: se queda lo recordado; si no hay link, se pide al tocar el botón
+  }
+}
+
+$('#telegram-conectar').addEventListener('click', async (evento) => {
+  esperandoTelegram = true;
+  $('#telegram-estado').textContent = 'Pícale "Iniciar" en Telegram y regresa aquí';
+  if (linkVigente()) return; // el link ya está listo: el navegador lo abre solo
+
+  // Todavía no hay link: se abre la ventana ya (si se espera, el teléfono la bloquea) y se llena después.
+  evento.preventDefault();
+  const ventana = window.open('', '_blank');
+  try {
+    const url = await pedirLink();
+    if (ventana) ventana.location.href = url;
+    else location.href = url;
   } catch (error) {
+    ventana?.close();
+    esperandoTelegram = false;
+    pintarTelegram(false);
     avisar('No se pudo conectar Telegram: ' + traducirError(error));
-  } finally {
-    boton.disabled = false;
   }
 });
 
 $('#telegram-desconectar').addEventListener('click', async () => {
   try {
     await pedirAlBot('desconectar');
-    pintarTelegram('Recibe recordatorios y tu resumen semanal en Telegram', false);
+    recordarTelegram(false);
     avisar('Listo, ya no te llegarán avisos.');
+    pedirLink().catch(() => {});
   } catch (error) {
     avisar('No se pudo: ' + traducirError(error));
   }
@@ -1678,7 +1705,9 @@ $('#telegram-desconectar').addEventListener('click', async () => {
 
 // Al regresar de Telegram, revisa si ya quedó conectado.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && !$('#telegram-abrir').hidden) revisarTelegram();
+  if (document.visibilityState !== 'visible' || !esperandoTelegram) return;
+  esperandoTelegram = false;
+  revisarTelegram();
 });
 
 async function iniciarCuenta() {
