@@ -111,7 +111,9 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
   animation: carga-aparece .9s var(--rebote) both, carga-respira 3.4s ease-in-out 1s infinite;
 }
 .carga-nombre { position: relative; font-size: 2.6rem; font-weight: 800; letter-spacing: -1px; animation: carga-sube .6s .35s both; }
-.carga-nombre span { color: var(--acento-2); }
+/* "Kashi" blanco brillante y "ki" en plata metálica más oscura, para que se distingan */
+.carga-nombre { color: #FFFFFF; }
+.carga-nombre span { background: linear-gradient(180deg, #C3C9D6 0%, #7A8294 55%, #5B6273 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .carga-lema { position: relative; margin: -6px 0 0; color: var(--suave); font-size: .95rem; letter-spacing: .3px; animation: carga-sube .6s .5s both; }
 .carga-barra {
   position: relative;
@@ -1126,7 +1128,8 @@ a.fila-ajuste { text-decoration: none; }
   .marca-lateral { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
   .marca-lateral img { width: 38px; height: 38px; object-fit: contain; }
   .marca-lateral span { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
-  .marca-lateral b { color: var(--acento); font-weight: 700; }
+  .marca-lateral span { color: #FFFFFF; }
+  .marca-lateral b { font-weight: 700; background: linear-gradient(180deg, #C3C9D6 0%, #7A8294 55%, #5B6273 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
   .barra-secciones .agregar-lateral {
     display: flex;

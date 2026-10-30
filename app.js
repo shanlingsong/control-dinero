@@ -905,13 +905,13 @@ function dibujarComparacionMes() {
     // Mes completo: ¿ya alcanzaste lo de todo el mes pasado?
     frase =
       mejor > 0
-        ? `¡Ya te queda más que en todo ${nombrePasado}! Vas ${dinero.format(mejor)} arriba y aún no acaba el mes.`
-        : `Te faltan ${dinero.format(-mejor)} para alcanzar lo que te quedó en todo ${nombrePasado}.`;
+        ? `Ya superaste lo que te quedó en todo ${nombrePasado} por ${dinero.format(mejor)}, y el mes aún no termina.`
+        : `Faltan ${dinero.format(-mejor)} para alcanzar lo que te quedó en todo ${nombrePasado}.`;
   } else {
     frase =
       mejor > 0
-        ? `¡Vas mejor! Te quedan ${dinero.format(mejor)} más que en ${nombrePasado}.`
-        : `Vas ${dinero.format(-mejor)} abajo de ${nombrePasado}. Todavía puedes recuperarte.`;
+        ? `Vas mejor que en ${nombrePasado}: te quedan ${dinero.format(mejor)} más.`
+        : `Vas ${dinero.format(-mejor)} por debajo de ${nombrePasado}.`;
   }
   $('#comparacion-frase').textContent = frase;
 }
@@ -1251,7 +1251,7 @@ function dibujarMetas() {
     aportar.className = 'boton-aportar';
     aportar.textContent = 'Aportar';
     aportar.addEventListener('click', () => abrirFormulario({ tipo: 'ahorro', meta: meta.id }));
-    arriba.append(icono(cumplida ? 'ti-trophy' : 'ti-target'), textoFila(meta.nombre, cumplida ? '¡Meta cumplida!' : `Faltan ${dinero.format(meta.objetivo - ahorrado)}`), aportar);
+    arriba.append(icono(cumplida ? 'ti-trophy' : 'ti-target'), textoFila(meta.nombre, cumplida ? 'Meta cumplida' : `Faltan ${dinero.format(meta.objetivo - ahorrado)}`), aportar);
 
     const barra = document.createElement('div');
     barra.className = 'barra';
@@ -1937,7 +1937,7 @@ $('#form-fijo').addEventListener('submit', (evento) => {
     creado: Date.now(),
   });
   cerrarHoja($('#hoja-fijo'));
-  avisar(`Listo: te aviso una semana antes de que se cobre ${nombre}.`);
+  avisar(`Te avisaremos una semana antes de cada cobro de ${nombre}.`);
 });
 
 // ---------- Secciones de dinero (Personal, Mi empresa…) ----------
@@ -2078,7 +2078,7 @@ $('#form-seccion').addEventListener('submit', (evento) => {
     secciones.push(nueva);
     guardarSecciones();
     cambiarSeccion(nueva.id);
-    avisar(`Listo: ahora estás en ${nombre}. Todo lo que anotes aquí queda separado.`);
+    avisar(`Ahora estás en ${nombre}. Lo que registres aquí queda separado.`);
   }
   cerrarHoja($('#hoja-seccion'));
 });
@@ -2430,8 +2430,8 @@ $('#form-ia').addEventListener('submit', (evento) => {
   campo.blur();
   // Para ahorros, la "categoría" es la meta.
   abrirFormulario(entendido.tipo === 'ahorro' ? { ...entendido, meta: entendido.categoria, categoria: null } : entendido);
-  if (!entendido.monto) avisar('No encontré cuánto fue: escríbelo con los números de abajo.');
-  else if (entendido.nuevaCategoria) avisar(`No conocía esa palabra: te propongo la categoría nueva "${entendido.nuevaCategoria}". Si no te late, elige otra.`);
+  if (!entendido.monto) avisar('No se encontró el monto. Escríbelo con el teclado numérico.');
+  else if (entendido.nuevaCategoria) avisar(`Categoría nueva sugerida: "${entendido.nuevaCategoria}". Puedes cambiarla antes de guardar.`);
 });
 
 // ---------- Cuenta: iniciar sesión, crear cuenta, cerrar sesión ----------
@@ -2694,7 +2694,7 @@ $('#traer-sheets').addEventListener('click', async () => {
     boton.hidden = true;
     dibujar();
     sincronizar();
-    avisar(`Listo: ${traidos} ${traidos === 1 ? 'registro pasó' : 'registros pasaron'} de Google Sheets a tu cuenta`);
+    avisar(`Se importaron ${traidos} ${traidos === 1 ? 'registro' : 'registros'} de Google Sheets a tu cuenta.`);
   } catch (error) {
     avisar('No se pudo leer Google Sheets: ' + traducirError(error));
   } finally {
@@ -2784,7 +2784,7 @@ $('#telegram-desconectar').addEventListener('click', async () => {
   try {
     await pedirAlBot('desconectar');
     recordarTelegram(false);
-    avisar('Listo, ya no te llegarán avisos.');
+    avisar('Avisos de Telegram desactivados.');
     pedirLink().catch(() => {});
   } catch (error) {
     avisar('No se pudo: ' + traducirError(error));
@@ -2868,7 +2868,7 @@ $('#notif-activar').addEventListener('click', async () => {
     const permiso = await Notification.requestPermission();
     if (permiso !== 'granted') {
       await revisarNotificaciones();
-      if (permiso === 'default') avisar('No se activaron. Puedes intentarlo otra vez cuando quieras.');
+      if (permiso === 'default') avisar('Las notificaciones no se activaron. Puedes intentarlo de nuevo cuando quieras.');
       return;
     }
     $('#notif-estado').textContent = 'Activando…';
@@ -2882,7 +2882,7 @@ $('#notif-activar').addEventListener('click', async () => {
       ));
     // Ya quedó activado en el teléfono: se avisa al instante y lo de la cuenta se guarda por detrás.
     pintarNotificaciones('Notificaciones activadas en este teléfono', true);
-    avisar('Listo: te llegarán tus avisos aquí. Toca "Probar" para ver cómo se ven.');
+    avisar('Notificaciones activadas. Toca "Probar" para ver un ejemplo.');
     guardarSuscripcion(suscripcion);
   } catch (error) {
     await revisarNotificaciones().catch(() => {});
@@ -2895,7 +2895,7 @@ $('#notif-activar').addEventListener('click', async () => {
 $('#notif-probar').addEventListener('click', async () => {
   const boton = $('#notif-probar');
   boton.disabled = true;
-  avisar('Mandando la prueba… sal de la app para verla llegar.');
+  avisar('Enviando una notificación de prueba. Sal de la app para verla.');
   try {
     // Primero se asegura de que este teléfono esté guardado en tu cuenta.
     const registro = await navigator.serviceWorker.ready;
@@ -2919,7 +2919,7 @@ $('#notif-quitar').addEventListener('click', async () => {
       await suscripcion.unsubscribe();
     }
     pintarNotificaciones('Recibe tus avisos como notificación en este teléfono', false);
-    avisar('Listo, ya no te llegarán notificaciones en este teléfono.');
+    avisar('Notificaciones desactivadas en este teléfono.');
   } catch (error) {
     avisar('No se pudo: ' + traducirError(error));
   }
@@ -3162,7 +3162,7 @@ $('#importar').addEventListener('change', async (evento) => {
     sincronizar();
     avisar(`Se agregaron ${agregados} registros del respaldo`);
   } catch {
-    avisar('Ese archivo no parece un respaldo de Mi Dinero.');
+    avisar('Ese archivo no es un respaldo de Kashiki.');
   }
 });
 

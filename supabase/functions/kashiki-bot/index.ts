@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
     if (cuerpo.accion === 'push-probar') {
-      const enviados = await mandarPush(usuario, { titulo: '🔔 ¡Listo!', cuerpo: 'Así te van a llegar los avisos de Kashiki.' });
+      const enviados = await mandarPush(usuario, { titulo: 'Notificaciones activadas', cuerpo: 'Así se verán los avisos de Kashiki.' });
       return json({ enviados });
     }
     return json({ error: 'No entendí qué quieres' }, 400);
@@ -151,19 +151,19 @@ async function atenderTelegram(update: any) {
       await enviar(
         chatId,
         '✅ <b>Kashiki está conectado</b>\n\n' +
-          '• Cada noche (8 pm) te aviso si no has registrado nada, para que no pierdas tu racha, y de los pagos que vencen.\n' +
-          '• Cada domingo (9 pm) te mando el resumen de tu semana.'
+          '• Cada noche (8 pm) recibirás un aviso si no has registrado nada y de los pagos por vencer.\n' +
+          '• Cada domingo (9 pm) recibirás el resumen de tu semana.'
       );
       return;
     }
-    await enviar(chatId, 'Ese link ya caducó 😅 Abre Kashiki → Ajustes → <b>Conectar Telegram</b> para sacar uno nuevo.');
+    await enviar(chatId, 'Este enlace ya caducó. Abre Kashiki → Configuración → <b>Telegram</b> para generar uno nuevo.');
     return;
   }
 
   // Los comandos solo funcionan si este chat ya está conectado a una cuenta.
   const { data: dueno } = await db.from('telegram').select('user_id').eq('chat_id', chatId).limit(1).maybeSingle();
   if (!dueno) {
-    await enviar(chatId, `Hola 👋 Soy el bot de Kashiki. Para recibir tus avisos abre Kashiki → Ajustes → <b>Conectar Telegram</b>.\n\n${URL_APP}`);
+    await enviar(chatId, `Este es el bot de Kashiki. Para recibir tus avisos, abre Kashiki → Configuración → <b>Telegram</b>.\n\n${URL_APP}`);
     return;
   }
 
@@ -200,7 +200,7 @@ const MENU = [
 const AYUDA =
   '🤖 <b>Esto me puedes pedir:</b>\n\n' +
   MENU.map((c) => `/${c.command} — ${c.description}`).join('\n') +
-  '\n\nAdemás, cada noche te aviso si no has registrado nada y cada domingo te mando tu semana.';
+  '\n\nAdemás, cada noche recibirás un aviso si no has registrado nada y cada domingo, el resumen de tu semana.';
 
 // Le dice a Telegram que mande los mensajes del bot a esta función. Se corre una vez.
 async function configurar() {
@@ -495,8 +495,8 @@ function recordatorioDiario(datos: Datos, hoy: string) {
     partes.push(
       racha > 0
         ? `🔥 Llevas <b>${racha} ${racha === 1 ? 'día seguido' : 'días seguidos'}</b> registrando tu dinero.\n` +
-            'Hoy todavía no anotas nada: entra antes de dormir para no perder tu racha.'
-        : '📝 Hoy no has registrado nada en Kashiki. ¡Empieza una racha nueva!'
+            'Hoy todavía no registras nada. Registra un movimiento antes de que termine el día para conservar tu racha.'
+        : '📝 Hoy no has registrado nada en Kashiki. Registra un movimiento para iniciar una racha nueva.'
     );
   }
 
@@ -663,7 +663,7 @@ function racha({ activos }: Datos, hoy: string) {
   const dias = rachaActual(activos, hoy);
   const texto = `🔥 Llevas <b>${dias} ${dias === 1 ? 'día seguido' : 'días seguidos'}</b> registrando tu dinero.`;
   if (activos.has(hoy)) return `${texto}\nHoy ya cuenta ✅`;
-  return `${texto}\nHoy todavía no anotas nada: entra antes de dormir para no perderla.\n\n${URL_APP}`;
+  return `${texto}\nHoy todavía no registras nada. Registra un movimiento antes de que termine el día para conservarla.\n\n${URL_APP}`;
 }
 
 // Si hoy no has registrado, la racha que cuenta es la que llevabas hasta ayer.
