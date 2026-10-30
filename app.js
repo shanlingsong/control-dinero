@@ -16,6 +16,7 @@ const ICONOS = {
   'Diversión': 'ti-device-gamepad-2',
   Ropa: 'ti-shirt',
   Otros: 'ti-dots',
+  'Pagos fijos': 'ti-repeat',
   Sueldo: 'ti-cash',
   Ventas: 'ti-briefcase',
   Negocio: 'ti-building-store',
@@ -42,6 +43,7 @@ const CLAVES = {
   metas: 'mi-dinero:metas',
   dias: 'mi-dinero:dias', // días marcados con "hoy no tuve movimientos"
   pendientes: 'mi-dinero:pagos', // pagos que debo o que me deben
+  fijos: 'mi-dinero:fijos', // pagos que se repiten: Netflix, renta, plan del cel…
 };
 const CLAVE_PENDIENTES = 'mi-dinero:pendientes';
 const CLAVE_PERFIL = 'mi-dinero:perfil';
@@ -58,6 +60,7 @@ const datos = {
   metas: limpiar('metas', leer(CLAVES.metas, [])),
   dias: limpiar('dias', leer(CLAVES.dias, [])),
   pendientes: limpiar('pendientes', leer(CLAVES.pendientes, [])),
+  fijos: limpiar('fijos', leer(CLAVES.fijos, [])),
 };
 let pendientes = leer(CLAVE_PENDIENTES, []); // cambios que aún no se suben a la nube
 let perfil = leer(CLAVE_PERFIL, { nombre: '', foto: '' });
@@ -118,6 +121,14 @@ function normalizar(nombre, x) {
     o.objetivo = Number(o.objetivo);
     o.nombre = texto(o.nombre);
     return o.objetivo > 0 && o.nombre ? o : null;
+  }
+  if (nombre === 'fijos') {
+    o.monto = Number(o.monto);
+    o.nombre = texto(o.nombre);
+    if (!(o.monto > 0) || !o.nombre) return null;
+    if (!['semana', 'mes', 'anio'].includes(o.cada)) o.cada = 'mes';
+    if (!ES_FECHA.test(o.proximo)) o.proximo = fechaLocal(new Date());
+    return o;
   }
   o.monto = Number(o.monto);
   if (!(o.monto > 0)) return null;
@@ -223,6 +234,7 @@ const COLUMNAS = {
   metas: ['id', 'nombre', 'objetivo', 'creado', 'seccion'],
   dias: ['id', 'creado'],
   pendientes: ['id', 'tipo', 'persona', 'monto', 'fecha', 'nota', 'creado', 'seccion'],
+  fijos: ['id', 'nombre', 'monto', 'cada', 'proximo', 'seccion', 'creado'],
 };
 const COLUMNAS_NUMERO = ['monto', 'objetivo', 'creado'];
 
@@ -326,7 +338,10 @@ function aplicarCambio(cambio) {
   const lista = datos[cambio.coleccion];
   if (!lista) return;
   if (cambio.accion === 'agregar') {
-    if (!lista.some((x) => x.id === cambio.objeto.id)) lista.push(cambio.objeto);
+    // Si ya existe (por ejemplo, un pago fijo al que se le movió la fecha), se reemplaza.
+    const i = lista.findIndex((x) => x.id === cambio.objeto.id);
+    if (i >= 0) lista[i] = cambio.objeto;
+    else lista.push(cambio.objeto);
   } else {
     datos[cambio.coleccion] = lista.filter((x) => x.id !== cambio.id);
   }
@@ -1174,6 +1189,7 @@ function dibujarPagos() {
 
   dibujarListaPagos($('#lista-debo'), debo, 'No le debes nada a nadie.');
   dibujarListaPagos($('#lista-me-deben'), meDeben, 'Nadie te debe nada.');
+  dibujarFijos();
 }
 
 function dibujarListaPagos(ul, pagos, textoVacio) {
@@ -1219,6 +1235,93 @@ function liquidarPago(p) {
   vibrar();
   avisar(debo ? `Pagado a ${p.persona}. Lo anoté como gasto.` : `${p.persona} te pagó. Lo anoté como ingreso.`);
 }
+
+// ---------- Pagos fijos (los que se repiten: Netflix, renta, plan del cel…) ----------
+
+const AVISAR_FIJOS = 7; // con cuántos días de anticipación se avisa
+const TEXTO_CADA = { semana: 'Cada semana', mes: 'Cada mes', anio: 'Cada año' };
+
+// La fecha del siguiente cobro. En los meses cortos se ajusta: un cobro del 31 pasa al 30 o al 28.
+function siguienteCobro(fecha, cada) {
+  if (cada === 'semana') return sumarDias(fecha, 7);
+  const [a, m, d] = fecha.split('-').map(Number);
+  const anio = cada === 'anio' ? a + 1 : a + (m === 12 ? 1 : 0);
+  const mes = cada === 'anio' ? m : (m % 12) + 1;
+  const ultimoDia = new Date(anio, mes, 0).getDate();
+  return fechaLocal(new Date(anio, mes - 1, Math.min(d, ultimoDia)));
+}
+
+// Los que se cobran pronto (o ya se pasaron), del más cercano al más lejano.
+const fijosProximos = () =>
+  deSeccion('fijos')
+    .filter((f) => diasPara(f.proximo) <= AVISAR_FIJOS)
+    .sort((a, b) => a.proximo.localeCompare(b.proximo));
+
+function dibujarFijos() {
+  const fijos = deSeccion('fijos').sort((a, b) => a.proximo.localeCompare(b.proximo));
+  const porMes = { semana: 52 / 12, mes: 1, anio: 1 / 12 };
+  const alMes = fijos.reduce((t, f) => t + f.monto * porMes[f.cada], 0);
+  $('#fijos-al-mes').textContent = fijos.length ? `Unos ${dinero.format(alMes)} al mes` : '';
+
+  const ul = $('#lista-fijos');
+  ul.replaceChildren();
+  if (fijos.length === 0) ul.append(vacio('Anota aquí lo que pagas seguido (Netflix, Spotify, renta…) y te aviso una semana antes.'));
+  for (const f of fijos) {
+    const dias = diasPara(f.proximo);
+    const li = filaDeslizable('fijo', () => borrarConDeshacer('fijos', f, `Borrado: ${f.nombre}`));
+    const cuando = document.createElement('span');
+    cuando.className = 'vence' + (dias < 0 ? ' vencido' : dias <= 1 ? ' pronto' : '');
+    cuando.textContent = cuandoVence(f.proximo);
+    const detalle = document.createDocumentFragment();
+    detalle.append(`${TEXTO_CADA[f.cada]} · `, cuando);
+
+    const pague = document.createElement('button');
+    pague.type = 'button';
+    pague.className = 'boton-listo';
+    pague.textContent = 'Pagué';
+    pague.addEventListener('click', () => pagarFijo(f));
+
+    li.querySelector('.fila').append(icono('ti-repeat'), textoFila(f.nombre, detalle), montoFila(dinero.format(f.monto)), pague);
+    ul.append(li);
+  }
+
+  // En Dinero: un aviso discreto con lo que se cobra en los próximos días.
+  const proximos = fijosProximos();
+  const aviso = $('#aviso-fijos');
+  aviso.hidden = proximos.length === 0;
+  if (proximos.length > 0) {
+    const primero = proximos[0];
+    const otros = proximos.length > 1 ? ` y ${proximos.length - 1} más` : '';
+    $('#aviso-fijos-texto').textContent = `${primero.nombre} (${dinero.format(primero.monto)}) · ${cuandoVence(primero.proximo).toLowerCase()}${otros}`;
+  }
+  // El punto en la barra también avisa si un pago fijo es hoy, mañana o ya se pasó.
+  if (proximos.some((f) => diasPara(f.proximo) <= 1)) $('#punto-pagos').hidden = false;
+}
+
+// Al pagarlo se anota como gasto y la fecha brinca al siguiente cobro (sigue en la lista).
+function pagarFijo(f) {
+  agregar('movimientos', {
+    id: crypto.randomUUID(),
+    tipo: 'gasto',
+    monto: f.monto,
+    categoria: 'Pagos fijos',
+    nota: f.nombre,
+    fecha: hoy(),
+    creado: Date.now(),
+    meta: '',
+  });
+  // Se cambia guardando una copia nueva con el mismo id (así también se actualiza en la nube).
+  const siguiente = { ...f, proximo: siguienteCobro(f.proximo, f.cada) };
+  datos.fijos = datos.fijos.map((x) => (x.id === f.id ? siguiente : x));
+  guardarColeccion('fijos');
+  encolar({ accion: 'agregar', coleccion: 'fijos', objeto: siguiente });
+  dibujar();
+  sincronizar();
+  vibrar();
+  avisar(`${f.nombre} pagado. El siguiente cobro es ${fechaBonita(siguiente.proximo)}.`);
+}
+
+$('#aviso-fijos').addEventListener('click', () => mostrarVista('pagos'));
 
 // ---------- Avisos ----------
 
@@ -1609,6 +1712,22 @@ $('#form-pago').addEventListener('submit', (evento) => {
   avisar('Anotado.');
 });
 
+$('#form-fijo').addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const form = evento.target;
+  const nombre = form.nombre.value.trim();
+  agregar('fijos', {
+    id: crypto.randomUUID(),
+    nombre,
+    monto: Math.round(Number(form.monto.value) * 100) / 100,
+    cada: form.cada.value,
+    proximo: form.proximo.value,
+    creado: Date.now(),
+  });
+  cerrarHoja($('#hoja-fijo'));
+  avisar(`Listo: te aviso una semana antes de que se cobre ${nombre}.`);
+});
+
 // ---------- Secciones de dinero (Personal, Mi empresa…) ----------
 
 const ICONOS_SECCION = ['ti-user', 'ti-building-store', 'ti-briefcase', 'ti-pepper', 'ti-home', 'ti-school', 'ti-heart', 'ti-car'];
@@ -1648,7 +1767,7 @@ async function seccionesDeLaCuenta() {
 
 function dibujarSecciones() {
   // Si llegó algo de una sección que este teléfono no conoce (por ejemplo, creada en otro), se agrega.
-  for (const nombre of ['movimientos', 'metas', 'pendientes']) {
+  for (const nombre of ['movimientos', 'metas', 'pendientes', 'fijos']) {
     for (const x of datos[nombre]) {
       if (!secciones.some((s) => s.id === x.seccion)) secciones.push({ id: x.seccion, nombre: 'Otra sección', icono: 'ti-folder' });
     }
@@ -1756,7 +1875,7 @@ $('#form-seccion').addEventListener('submit', (evento) => {
 $('#seccion-borrar').addEventListener('click', () => {
   const id = seccionEditando?.id;
   if (!id || id === 'personal') return;
-  const usados = ['movimientos', 'metas', 'pendientes'].reduce((t, n) => t + datos[n].filter((x) => x.seccion === id).length, 0);
+  const usados = ['movimientos', 'metas', 'pendientes', 'fijos'].reduce((t, n) => t + datos[n].filter((x) => x.seccion === id).length, 0);
   if (usados > 0) {
     avisar(`No se puede borrar: tiene ${usados} ${usados === 1 ? 'registro' : 'registros'}. Bórralos primero.`);
     return;
@@ -1826,6 +1945,12 @@ const abridores = {
     form.fecha.value = sumarDias(hoy(), 7);
     ajustarFormularioPago();
     abrirHoja($('#hoja-pago'));
+  },
+  fijo: () => {
+    const form = $('#form-fijo');
+    form.reset();
+    form.proximo.value = hoy();
+    abrirHoja($('#hoja-fijo'));
   },
 };
 for (const boton of document.querySelectorAll('[data-abre]')) {

@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=31">
+  <link rel="stylesheet" href="styles.css?v=32">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -59,6 +59,10 @@
         <strong id="saldo" class="saldo">$0.00</strong>
         <span id="comparacion" class="comparacion"></span>
       </div>
+      <!-- Aviso de pagos fijos que se cobran en los próximos días; al picarle lleva a Pagos -->
+      <button type="button" id="aviso-fijos" class="aviso-fijos" hidden>
+        <i class="ti ti-repeat" aria-hidden="true"></i><span id="aviso-fijos-texto"></span><i class="ti ti-chevron-right" aria-hidden="true"></i>
+      </button>
 
       <!-- Escribir un movimiento en lenguaje normal; la IA lo convierte -->
       <form id="form-ia" class="ia" hidden>
@@ -223,6 +227,16 @@
         <h2>Me deben</h2>
         <ul id="lista-me-deben" class="lista"></ul>
       </div>
+
+      <!-- Pagos fijos: los que se repiten (Netflix, renta…). Al picar "Pagué" la fecha brinca al siguiente cobro. -->
+      <div class="bloque-fijos">
+        <div class="titulo-seccion">
+          <h2>Pagos fijos</h2>
+          <span id="fijos-al-mes" class="suave pequeno"></span>
+        </div>
+        <ul id="lista-fijos" class="lista"></ul>
+        <button type="button" class="boton-secundario" data-abre="fijo"><i class="ti ti-repeat" aria-hidden="true"></i> Agregar pago fijo</button>
+      </div>
     </section>
   </main>
 
@@ -283,6 +297,31 @@
   </dialog>
 
   <!-- Hoja: nuevo pago pendiente -->
+  <!-- Hoja: nuevo pago fijo -->
+  <dialog id="hoja-fijo" class="hoja">
+    <form id="form-fijo">
+      <div class="hoja-arriba"><div class="agarradera"></div><button type="button" class="cerrar-hoja" data-cierra aria-label="Cerrar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
+      <h2>Pago fijo</h2>
+      <p class="suave pequeno">Lo que pagas seguido. Te aviso una semana antes de cada cobro.</p>
+      <label class="etiqueta">¿Qué es?
+        <input type="text" name="nombre" class="campo" placeholder="Netflix" maxlength="40" required>
+      </label>
+      <label class="etiqueta">¿Cuánto cuesta?
+        <input type="number" name="monto" class="campo" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
+      </label>
+      <div class="etiqueta">¿Cada cuánto?</div>
+      <div class="segmentos tipo" role="radiogroup" aria-label="Cada cuánto se cobra">
+        <label><input type="radio" name="cada" value="semana"><span>Semana</span></label>
+        <label><input type="radio" name="cada" value="mes" checked><span>Mes</span></label>
+        <label><input type="radio" name="cada" value="anio"><span>Año</span></label>
+      </div>
+      <label class="etiqueta">¿Cuándo es el próximo cobro?
+        <input type="date" name="proximo" class="campo" required>
+      </label>
+      <button type="submit" class="boton-grande">Guardar</button>
+    </form>
+  </dialog>
+
   <dialog id="hoja-pago" class="hoja">
     <form id="form-pago">
       <div class="hoja-arriba"><div class="agarradera"></div><button type="button" class="cerrar-hoja" data-cierra aria-label="Cerrar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
@@ -446,6 +485,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=31"></script>
+  <script src="app.js?v=32"></script>
 </body>
 </html>

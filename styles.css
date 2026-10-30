@@ -925,6 +925,26 @@ button.saludo:active { background: var(--tarjeta); }
 .opcion-nueva .opcion-icono { background: none; border: 1px dashed var(--linea); }
 .iconos-seccion { flex-wrap: wrap; }
 .icono-chip { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; font-size: 1.3rem; }
+/* ---------- Pagos fijos ---------- */
+.bloque-fijos { display: grid; gap: 10px; padding-top: 6px; border-top: 1px solid var(--linea); }
+.bloque-fijos > .boton-secundario { justify-self: start; }
+.aviso-fijos {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid rgb(255 179 71 / 0.35);
+  background: rgb(255 179 71 / 0.08);
+  color: var(--texto);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  text-align: left;
+}
+.aviso-fijos[hidden] { display: none; }
+.aviso-fijos span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aviso-fijos .ti { color: var(--acento-2); font-size: 1.1rem; }
+.aviso-fijos .ti-chevron-right { color: var(--suave); }
 /* ---------- Partes que solo existen en la compu ---------- */
 .columna { display: contents; } /* en el teléfono es como si no existiera */
 .marca-lateral, .barra-secciones .agregar-lateral { display: none; }
@@ -1007,7 +1027,7 @@ button.saludo:active { background: var(--tarjeta); }
   .columna { display: grid; gap: 16px; align-content: start; }
   .detalle-arriba,
   #vista-racha > .etapas, #vista-racha > p,
-  #vista-pagos > .dos-columnas, #vista-pagos > .boton-grande { grid-column: 1 / -1; }
+  #vista-pagos > .dos-columnas, #vista-pagos > .boton-grande, #vista-pagos > .bloque-fijos { grid-column: 1 / -1; }
   #vista-pagos > .boton-grande { justify-self: start; width: auto; padding-left: 28px; padding-right: 28px; }
   .metas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #vista-metas > .boton-grande { justify-self: start; width: auto; padding-left: 28px; padding-right: 28px; }

@@ -224,8 +224,9 @@ async function paraTodos(tarea: (datos: Datos, hoy: string) => string | null) {
 type Movimiento = { tipo: string; monto: number; categoria: string; fecha: string; creado: number; meta: string; seccion: string };
 type Meta = { id: string; nombre: string; objetivo: number; creado: number; seccion: string };
 type Pendiente = { tipo: string; persona: string; monto: number; fecha: string; nota: string; creado: number; seccion: string };
+type Fijo = { nombre: string; monto: number; cada: string; proximo: string; seccion: string };
 type Seccion = { id: string; nombre: string; icono?: string };
-type Datos = { movimientos: Movimiento[]; metas: Meta[]; pendientes: Pendiente[]; activos: Set<string>; secciones: Seccion[] };
+type Datos = { movimientos: Movimiento[]; metas: Meta[]; pendientes: Pendiente[]; fijos: Fijo[]; activos: Set<string>; secciones: Seccion[] };
 
 // Los íconos de la app (Tabler) en versión emoji para Telegram.
 const EMOJIS: Record<string, string> = {
@@ -241,15 +242,16 @@ const EMOJIS: Record<string, string> = {
 const encabezadoSeccion = (s: Seccion) => `${EMOJIS[s.icono ?? ''] ?? '📁'} <b>${escapar(s.nombre)}</b>`;
 
 // Parte tus datos por sección (Personal, Ventas…). Solo salen las secciones que tienen algo.
-function porSeccion({ movimientos, metas, pendientes, secciones }: Datos) {
+function porSeccion({ movimientos, metas, pendientes, fijos, secciones }: Datos) {
   return secciones
     .map((seccion) => ({
       seccion,
       movimientos: movimientos.filter((m) => m.seccion === seccion.id),
       metas: metas.filter((m) => m.seccion === seccion.id),
       pendientes: pendientes.filter((p) => p.seccion === seccion.id),
+      fijos: fijos.filter((f) => f.seccion === seccion.id),
     }))
-    .filter((g) => g.movimientos.length + g.metas.length + g.pendientes.length > 0);
+    .filter((g) => g.movimientos.length + g.metas.length + g.pendientes.length + g.fijos.length > 0);
 }
 
 async function leerDatos(usuario: string): Promise<Datos> {
@@ -264,8 +266,8 @@ async function leerDatos(usuario: string): Promise<Datos> {
       seccion: fila.seccion || 'personal',
     }));
   };
-  const [movimientos, metas, dias, pendientes] = await Promise.all(
-    ['movimientos', 'metas', 'dias', 'pendientes'].map(leer)
+  const [movimientos, metas, dias, pendientes, fijos] = await Promise.all(
+    ['movimientos', 'metas', 'dias', 'pendientes', 'fijos'].map(leer)
   );
 
   // Los nombres de tus secciones se guardan en tu cuenta (los que les pusiste en la app).
@@ -274,14 +276,14 @@ async function leerDatos(usuario: string): Promise<Datos> {
   const secciones: Seccion[] = guardadas.some((s) => s.id === 'personal')
     ? [...guardadas]
     : [{ id: 'personal', nombre: 'Personal', icono: 'ti-user' }, ...guardadas];
-  for (const x of [...movimientos, ...metas, ...pendientes]) {
+  for (const x of [...movimientos, ...metas, ...pendientes, ...fijos]) {
     if (!secciones.some((s) => s.id === x.seccion)) secciones.push({ id: x.seccion, nombre: 'Otra sección' });
   }
 
   // Un día cuenta para la racha si registraste algo ese día o marcaste "hoy no tuve movimientos".
   const activos = new Set<string>(dias.map((d: any) => d.id));
   [...movimientos, ...metas, ...pendientes].forEach((x: any) => x.creado && activos.add(fechaDe(x.creado)));
-  return { movimientos, metas, pendientes, activos, secciones };
+  return { movimientos, metas, pendientes, fijos, activos, secciones };
 }
 
 // ---------- Fechas, dinero y racha ----------
@@ -315,6 +317,19 @@ function escapar(texto: string) {
 
 function diasEntre(desde: string, hasta: string) {
   return Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000);
+}
+
+const AVISAR_FIJOS = 7; // días antes del cobro de un pago fijo en que llega el primer aviso
+
+// "• Netflix · $199.00 · en 7 días (5 nov)"
+function lineaFijo(f: Fijo & { etiqueta?: string }, hoy: string) {
+  const dias = diasEntre(hoy, f.proximo);
+  let cuando = `en ${dias} días (${fechaCorta(f.proximo)})`;
+  if (dias < 0) cuando = `se cobró el ${fechaCorta(f.proximo)} — márcalo como pagado en la app`;
+  else if (dias === 0) cuando = 'se cobra hoy';
+  else if (dias === 1) cuando = 'se cobra mañana';
+  const seccion = f.etiqueta ? ` <i>(${escapar(f.etiqueta)})</i>` : '';
+  return `• <b>${escapar(f.nombre)}</b> · ${pesos(f.monto)} · ${cuando}${seccion}`;
 }
 
 // "etiqueta" = el nombre de la sección, cuando hay varias y el pago sale en una lista junta.
@@ -370,6 +385,13 @@ function recordatorioDiario(datos: Datos, hoy: string) {
   if (debo.length > 0) partes.push('📌 <b>Pagos que tienes que hacer</b>\n' + debo.map((p) => lineaPago(p, hoy)).join('\n'));
   if (meDeben.length > 0) partes.push('💬 <b>Te tienen que pagar</b>\n' + meDeben.map((p) => lineaPago(p, hoy)).join('\n'));
 
+  // Pagos fijos: aviso una semana antes, un día antes y el mismo día (no todos los días, para no fastidiar).
+  const fijosHoy = grupos
+    .flatMap((g) => g.fijos.map((f) => ({ ...f, etiqueta: conNombre ? g.seccion.nombre : '' })))
+    .filter((f) => [AVISAR_FIJOS, 1, 0].includes(diasEntre(hoy, f.proximo)))
+    .sort((a, b) => a.proximo.localeCompare(b.proximo));
+  if (fijosHoy.length > 0) partes.push('🔁 <b>Pagos fijos que se vienen</b>\n' + fijosHoy.map((f) => lineaFijo(f, hoy)).join('\n'));
+
   if (!activos.has(hoy)) {
     const racha = contarRacha(activos, sumarDias(hoy, -1));
     partes.push(
@@ -412,7 +434,7 @@ function resumen(datos: Datos, hoy: string, inicio: string, titulo: string) {
 
 // Lo de UNA sección: con cuánto empezaste, cuánto generaste, gastaste, con cuánto vas, metas y pagos.
 function resumenDeSeccion(
-  { movimientos, metas, pendientes }: { movimientos: Movimiento[]; metas: Meta[]; pendientes: Pendiente[] },
+  { movimientos, metas, pendientes, fijos }: { movimientos: Movimiento[]; metas: Meta[]; pendientes: Pendiente[]; fijos: Fijo[] },
   hoy: string,
   inicio: string
 ) {
@@ -467,6 +489,11 @@ function resumenDeSeccion(
   if (meDeben.length > 0) {
     lineas.push('', '<b>💬 Te tienen que pagar esta semana</b>');
     meDeben.forEach((p) => lineas.push(lineaPago(p, hoy)));
+  }
+  const fijosSemana = fijos.filter((f) => f.proximo <= proximaSemana).sort((a, b) => a.proximo.localeCompare(b.proximo));
+  if (fijosSemana.length > 0) {
+    lineas.push('', '<b>🔁 Pagos fijos de esta semana</b>');
+    fijosSemana.forEach((f) => lineas.push(lineaFijo(f, hoy)));
   }
   return lineas;
 }

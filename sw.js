@@ -1,7 +1,7 @@
 // Service worker: guarda una copia de la app para que abra aunque no haya internet.
 // Primero intenta descargar la versión más nueva; si no hay conexión, usa la copia guardada.
 
-const CACHE = 'kashiki-v31';
+const CACHE = 'kashiki-v32';
 const ARCHIVOS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'marca/kashiki.png'];
 // Con señal muy mala, la red puede tardar muchísimo en contestar. Si pasa este tiempo y ya hay
 // una copia guardada de ESA MISMA versión, se usa la copia para que la app no se quede "trabada".
