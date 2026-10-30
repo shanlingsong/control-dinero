@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=29">
+  <link rel="stylesheet" href="styles.css?v=30">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -49,8 +49,15 @@
   <main>
     <p id="estado" class="estado"></p>
 
-    <!-- Secciones de dinero: con un toque cambias entre Personal, Mi empresa, etc. -->
-    <div id="secciones" class="secciones" role="group" aria-label="Secciones de dinero"></div>
+    <!-- Secciones de dinero: solo se ve en la que estás; al picarle se despliegan las demás -->
+    <div id="secciones" class="selector-seccion">
+      <button type="button" id="seccion-boton" class="pastilla-seccion" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-secciones">
+        <i id="seccion-icono" class="ti ti-user" aria-hidden="true"></i>
+        <span id="seccion-nombre">Personal</span>
+        <i class="ti ti-chevron-down flecha-seccion" aria-hidden="true"></i>
+      </button>
+      <div id="menu-secciones" class="menu-secciones" role="menu" hidden></div>
+    </div>
 
     <!-- ========== Sección: Dinero ========== -->
     <section id="vista-dinero" class="vista">
@@ -439,6 +446,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=29"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>

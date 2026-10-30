@@ -1646,27 +1646,65 @@ function dibujarSecciones() {
   }
   if (!secciones.some((s) => s.id === seccionActual)) seccionActual = 'personal';
 
-  const fila = $('#secciones');
-  fila.replaceChildren();
+  // La pastilla: solo la sección en la que estás.
+  const actual = seccionVista();
+  $('#seccion-icono').className = `ti ${actual.icono || 'ti-folder'}`;
+  $('#seccion-nombre').textContent = actual.nombre;
+
+  // El menú que se despliega: todas las secciones (con palomita en la actual), un lápiz para
+  // editar cada una y, hasta abajo, "Nueva sección".
+  const menu = $('#menu-secciones');
+  menu.replaceChildren();
   for (const s of secciones) {
-    const boton = document.createElement('button');
-    boton.type = 'button';
-    boton.className = 'chip-seccion' + (s.id === seccionActual ? ' activo' : '');
-    boton.setAttribute('aria-pressed', s.id === seccionActual);
-    boton.innerHTML = `<i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i><span></span>`;
-    boton.querySelector('span').textContent = s.nombre;
-    // Tocar la sección en la que ya estás la abre para cambiarle el nombre o el ícono.
-    boton.title = s.id === seccionActual ? 'Toca otra vez para editarla' : '';
-    boton.addEventListener('click', () => (s.id === seccionActual ? abrirSeccion(s) : cambiarSeccion(s.id)));
-    fila.append(boton);
+    const fila = document.createElement('div');
+    fila.className = 'opcion-seccion' + (s.id === seccionActual ? ' actual' : '');
+    fila.innerHTML = `<button type="button" class="opcion-elegir" role="menuitemradio" aria-checked="${s.id === seccionActual}">
+        <i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i><span></span>
+        <i class="ti ti-check palomita" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="opcion-editar"><i class="ti ti-pencil" aria-hidden="true"></i></button>`;
+    fila.querySelector('span').textContent = s.nombre;
+    fila.querySelector('.opcion-editar').setAttribute('aria-label', `Editar ${s.nombre}`);
+    fila.querySelector('.opcion-elegir').addEventListener('click', () => {
+      cerrarMenuSecciones();
+      if (s.id !== seccionActual) cambiarSeccion(s.id);
+    });
+    fila.querySelector('.opcion-editar').addEventListener('click', () => {
+      cerrarMenuSecciones();
+      abrirSeccion(s);
+    });
+    menu.append(fila);
   }
   const nueva = document.createElement('button');
   nueva.type = 'button';
-  nueva.className = 'chip-seccion nueva';
-  nueva.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i><span>Nueva</span>';
-  nueva.addEventListener('click', () => abrirSeccion(null));
-  fila.append(nueva);
+  nueva.className = 'opcion-nueva';
+  nueva.setAttribute('role', 'menuitem');
+  nueva.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i>Nueva sección';
+  nueva.addEventListener('click', () => {
+    cerrarMenuSecciones();
+    abrirSeccion(null);
+  });
+  menu.append(nueva);
 }
+
+function abrirMenuSecciones() {
+  $('#menu-secciones').hidden = false;
+  $('#seccion-boton').setAttribute('aria-expanded', 'true');
+}
+
+function cerrarMenuSecciones() {
+  $('#menu-secciones').hidden = true;
+  $('#seccion-boton').setAttribute('aria-expanded', 'false');
+}
+
+$('#seccion-boton').addEventListener('click', () => ($('#menu-secciones').hidden ? abrirMenuSecciones() : cerrarMenuSecciones()));
+// Tocar fuera del menú, o la tecla Esc, lo cierra.
+document.addEventListener('click', (e) => {
+  if (!$('#menu-secciones').hidden && !e.target.closest('#secciones')) cerrarMenuSecciones();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') cerrarMenuSecciones();
+});
 
 function cambiarSeccion(id) {
   seccionActual = id;

@@ -846,36 +846,95 @@ code { font-size: 0.8em; background: var(--fondo); padding: 1px 5px; border-radi
 }
 #buscar-filtros { flex-wrap: wrap; }
 #vista-buscar { max-width: 720px; }
-/* ---------- Secciones de dinero ---------- */
-.secciones {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  margin: 0 -16px 14px;
-  padding: 2px 16px;
-  scrollbar-width: none;
-}
-.secciones::-webkit-scrollbar { display: none; }
-.secciones[hidden] { display: none; }
-.chip-seccion {
-  flex: none;
+/* ---------- Secciones de dinero: pastilla + menú que se despliega ---------- */
+.selector-seccion { position: relative; display: flex; margin-bottom: 12px; }
+.selector-seccion[hidden] { display: none; }
+.pastilla-seccion {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   border: 1px solid var(--linea);
   background: var(--tarjeta);
-  color: var(--suave);
+  color: var(--texto);
   border-radius: 999px;
-  padding: 7px 14px;
+  padding: 6px 10px 6px 12px;
   font-size: 0.88rem;
-  font-weight: 500;
-  transition: background .2s, color .2s, border-color .2s, transform .12s;
+  font-weight: 600;
+  transition: border-color .2s, transform .12s;
 }
-.chip-seccion .ti { font-size: 1.05rem; }
-.chip-seccion:active { transform: scale(.95); }
-.chip-seccion.activo { background: rgb(255 179 71 / 0.14); border-color: var(--acento-2); color: var(--texto); }
-.chip-seccion.activo .ti { color: var(--acento-2); }
-.chip-seccion.nueva { border-style: dashed; background: transparent; }
+.pastilla-seccion:active { transform: scale(.96); }
+.pastilla-seccion > .ti:first-child { color: var(--acento-2); font-size: 1.05rem; }
+.pastilla-seccion .flecha-seccion { color: var(--suave); font-size: 0.95rem; transition: transform .25s var(--suavecito); }
+.pastilla-seccion[aria-expanded="true"] { border-color: var(--acento-2); }
+.pastilla-seccion[aria-expanded="true"] .flecha-seccion { transform: rotate(180deg); }
+
+.menu-secciones {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 6;
+  width: min(280px, calc(100vw - 32px));
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  background: var(--tarjeta-2);
+  border: 1px solid var(--linea);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.45);
+  transform-origin: top left;
+  animation: menu-despliega .22s var(--rebote);
+}
+.menu-secciones[hidden] { display: none; }
+@keyframes menu-despliega { from { opacity: 0; transform: scale(.9) translateY(-6px); } }
+.opcion-seccion { display: flex; align-items: center; border-radius: 12px; transition: background .15s; }
+.opcion-seccion:hover, .opcion-seccion.actual { background: rgb(255 255 255 / 0.04); }
+.opcion-elegir {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: none;
+  color: var(--texto);
+  padding: 10px 6px 10px 10px;
+  text-align: left;
+  font-size: 0.95rem;
+}
+.opcion-elegir span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opcion-elegir > .ti:first-child { font-size: 1.15rem; color: var(--suave); }
+.opcion-seccion.actual .opcion-elegir > .ti:first-child { color: var(--acento-2); }
+.palomita { color: var(--acento-2); visibility: hidden; }
+.opcion-seccion.actual .palomita { visibility: visible; }
+.opcion-editar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--suave);
+  display: grid;
+  place-items: center;
+}
+.opcion-editar:hover { background: var(--tarjeta); color: var(--texto); }
+.opcion-nueva {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 11px 10px;
+  border: none;
+  border-top: 1px solid var(--linea);
+  border-radius: 0 0 12px 12px;
+  background: none;
+  color: var(--suave);
+  font-size: 0.9rem;
+  text-align: left;
+}
+.opcion-nueva:hover { color: var(--texto); }
+.opcion-nueva .ti { font-size: 1.15rem; }
 .iconos-seccion { flex-wrap: wrap; }
 .icono-chip { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; font-size: 1.3rem; }
 /* ---------- Partes que solo existen en la compu ---------- */
