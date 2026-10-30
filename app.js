@@ -2204,12 +2204,113 @@ lienzo.addEventListener('pointercancel', soltarGrafica);
 
 $('#mes').addEventListener('change', dibujarMes);
 
-// ---------- IA: escribir en lenguaje normal ----------
+// ---------- Anotar escribiendo: "gasté 80 en tacos ayer" ----------
+// Sin IA ni internet: con reglas (listas de palabras) se saca el monto, el tipo, la categoría,
+// la fecha y la nota. Después se abre el formulario YA LLENO para que lo revises antes de guardar.
 
-// Se queda oculta hasta que la IA se mude a Supabase (antes vivía en el servidor de Google Sheets).
 function mostrarIA() {
-  $('#form-ia').hidden = true;
+  $('#form-ia').hidden = false;
 }
+
+// Palabras que dicen qué tipo de movimiento es (se buscan sin acentos). Si no hay ninguna, es gasto.
+const PALABRAS_TIPO = {
+  ingreso: ['me pagaron', 'me pago', 'me depositaron', 'me deposito', 'me dieron', 'me regalaron', 'me transfirieron', 'cobre', 'gane', 'vendi', 'recibi', 'ingreso', 'sueldo', 'quincena', 'nomina', 'venta de', 'ventas'],
+  ahorro: ['ahorre', 'ahorrar', 'aparte', 'apartar', 'guarde', 'ahorro', 'meti a', 'para la meta', 'para mi meta'],
+};
+
+// Palabras que dicen la categoría. Las categorías que tú creaste también se reconocen por su nombre.
+const PALABRAS_CATEGORIA = {
+  Comida: ['comida', 'taco', 'torta', 'pizza', 'hamburguesa', 'cafe', 'refresco', 'coca', 'almuerzo', 'desayuno', 'comi', 'cena', 'antojo', 'dulce', 'botana', 'helado', 'pan', 'sushi', 'pollo', 'elote', 'agua', 'snack', 'restaurante', 'oxxo'],
+  Transporte: ['uber', 'didi', 'taxi', 'camion', 'metro', 'gasolina', 'pasaje', 'transporte', 'combi', 'estacionamiento', 'caseta', 'bici', 'moto'],
+  Casa: ['renta', 'super', 'despensa', 'casa', 'limpieza', 'mueble', 'walmart', 'soriana', 'costco'],
+  Servicios: ['luz', 'internet', 'telefono', 'celular', 'recarga', 'plan', 'netflix', 'spotify', 'gas', 'servicio', 'suscripcion', 'icloud', 'youtube'],
+  Salud: ['farmacia', 'doctor', 'medicina', 'medicamento', 'dentista', 'consulta', 'hospital', 'pastilla', 'gym', 'gimnasio'],
+  'Diversión': ['cine', 'fiesta', 'juego', 'videojuego', 'salida', 'concierto', 'bar', 'antro', 'boliche', 'feria', 'peli', 'pelicula', 'fortnite', 'robux', 'steam'],
+  Ropa: ['ropa', 'tenis', 'zapato', 'playera', 'pantalon', 'sudadera', 'gorra', 'camisa', 'chamarra', 'calcetin', 'shorts', 'vestido'],
+  Ventas: ['vendi', 'venta', 'cliente', 'chile', 'pedido'],
+  Sueldo: ['sueldo', 'quincena', 'nomina', 'me pagaron', 'trabajo', 'salario'],
+  Regalo: ['regalaron', 'regalo', 'me dieron'],
+  Negocio: ['negocio', 'abasto', 'mercancia', 'proveedor'],
+};
+
+// Palabras que se quitan para que la nota quede limpia ("gasté 80 en tacos ayer" → "tacos").
+const PALABRAS_SOBRAN = new Set('fui fuimos fue nos le les se gastamos pagamos compramos gaste gasto pague pago compre compro me pagaron depositaron deposito dieron regalaron transfirieron cobre gane vendi recibi ahorre ahorrar aparte apartar guarde meti en de del la el los las un una unos unas para por con a al y mi mis que hoy ayer antier anteayer pesos peso mxn varo varos lana mil lunes martes miercoles jueves viernes sabado domingo pasado este esta ese'.split(' '));
+
+const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
+function interpretarTexto(original) {
+  const base = sinAcentos(original);
+  // Para buscar palabras se quitan los signos (pero el monto se busca en "base", con sus comas y puntos).
+  const texto = ' ' + base.replace(/[¿?¡!,;]|\.(?!\d)/g, ' ').replace(/\s+/g, ' ') + ' ';
+  // Palabra completa (o su plural): "taco" encuentra "tacos", pero "pan" no encuentra "pantalón".
+  const tiene = (palabra) => new RegExp(`\\s${palabra.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(s|es)?\\s`).test(texto);
+
+  // 1. El monto: el primer número ("80", "$1,250.50", "1.5 mil", "2 mil", "mil").
+  let monto = 0;
+  const numero = base.match(/\$?\s?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(\s*mil\b)?/);
+  if (numero) {
+    monto = Number(numero[1].replace(/,(?=\d{3}\b)/g, '').replace(',', '.'));
+    if (numero[2]) monto *= 1000;
+  } else if (/\bmil\b/.test(texto)) {
+    monto = 1000;
+  }
+  monto = Math.round(monto * 100) / 100;
+
+  // 2. El tipo: ingreso o ahorro si aparece alguna de sus palabras; si no, gasto.
+  let tipo = 'gasto';
+  if (PALABRAS_TIPO.ahorro.some(tiene)) tipo = 'ahorro';
+  else if (PALABRAS_TIPO.ingreso.some(tiene)) tipo = 'ingreso';
+
+  // 3. La categoría (para ahorros, la meta que se mencione o la primera).
+  let categoria = null;
+  if (tipo === 'ahorro') {
+    const metas = deSeccion('metas');
+    categoria = (metas.find((meta) => texto.includes(sinAcentos(meta.nombre))) || metas[0])?.id ?? null;
+  } else {
+    const validas = categoriasDe(tipo);
+    // Primero tus categorías por su nombre exacto, luego las palabras de la lista.
+    categoria = validas.find((c) => c !== 'Otros' && tiene(sinAcentos(c)));
+    if (!categoria) {
+      categoria = Object.entries(PALABRAS_CATEGORIA).find(([c, palabras]) => validas.includes(c) && palabras.some(tiene))?.[0];
+    }
+    categoria = categoria || 'Otros';
+  }
+
+  // 4. La fecha: hoy, ayer, antier o un día de la semana ("el lunes" = el lunes pasado más cercano).
+  let fecha = hoy();
+  if (tiene('antier') || tiene('anteayer')) fecha = sumarDias(hoy(), -2);
+  else if (tiene('ayer')) fecha = sumarDias(hoy(), -1);
+  else {
+    const dia = DIAS_SEMANA.findIndex((d) => tiene(d));
+    if (dia >= 0) {
+      const atras = (new Date().getDay() - dia + 7) % 7;
+      fecha = sumarDias(hoy(), -atras);
+    }
+  }
+
+  // 5. La nota: lo que queda sin números ni palabras de relleno ("tacos con Fran").
+  const palabrasOriginales = original.replace(/[¿?¡!,;]/g, ' ').split(/\s+/).filter(Boolean);
+  const nota = palabrasOriginales
+    .filter((p) => !/\d/.test(p) && !/^\$/.test(p) && !PALABRAS_SOBRAN.has(sinAcentos(p)))
+    .join(' ')
+    .trim();
+  const notaFinal = sinAcentos(nota) === sinAcentos(String(categoria)) ? '' : nota;
+
+  return { tipo, monto, categoria, fecha, nota: notaFinal.slice(0, 80) };
+}
+
+$('#form-ia').addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const campo = evento.target.texto;
+  const texto = campo.value.trim();
+  if (!texto) return;
+  const entendido = interpretarTexto(texto);
+  campo.value = '';
+  campo.blur();
+  // Para ahorros, la "categoría" es la meta.
+  abrirFormulario(entendido.tipo === 'ahorro' ? { ...entendido, meta: entendido.categoria, categoria: null } : entendido);
+  if (!entendido.monto) avisar('No encontré cuánto fue: escríbelo con los números.');
+});
 
 // ---------- Cuenta: iniciar sesión, crear cuenta, cerrar sesión ----------
 
