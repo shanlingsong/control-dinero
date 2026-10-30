@@ -598,6 +598,22 @@ function dibujarGrafica(animar = true) {
   $('#grafica-titulo').textContent = { 7: 'Esta semana', 30: 'Este mes', 90: 'Últimos 3 meses' }[grafica.rango];
   $('#grafica-que').hidden = grafica.modo !== 'barras';
 
+  // Degradados: las barras se desvanecen hacia abajo y la de hoy brilla con el color fuerte.
+  const degradado = (id, arriba, abajo, opArriba = 1, opAbajo = 1) => {
+    const g = svg('linearGradient', { id, x1: 0, y1: 0, x2: 0, y2: 1 });
+    g.append(svg('stop', { offset: 0 }, { stopColor: arriba, stopOpacity: opArriba }), svg('stop', { offset: 1 }, { stopColor: abajo, stopOpacity: opAbajo }));
+    return g;
+  };
+  const defs = svg('defs', {});
+  defs.append(
+    degradado('g-barra-gas', 'var(--acento-2)', 'var(--acento-2)', 0.6, 0.1),
+    degradado('g-hoy-gas', 'var(--acento-2)', 'var(--acento-3)'),
+    degradado('g-barra-ing', 'var(--positivo)', 'var(--positivo)', 0.6, 0.1),
+    degradado('g-hoy-ing', '#9CF5CF', 'var(--positivo)'),
+    degradado('g-area', 'var(--acento)', 'var(--acento)', 0.35, 0)
+  );
+  lienzo.append(defs);
+
   const n = puntos.length;
   const ultimo = n - 1;
   if (grafica.modo === 'barras') {
@@ -606,8 +622,8 @@ function dibujarGrafica(animar = true) {
     const paso = ANCHO / n;
     const ancho = paso * (n <= 13 ? 0.62 : 0.66);
     const radio = Math.min(10, ancho / 2.6);
-    const color = grafica.que === 'gas' ? 'var(--acento-2)' : 'var(--positivo)';
-    const colorHoy = grafica.que === 'gas' ? 'var(--acento)' : 'var(--acento-2)';
+    const color = `url(#g-barra-${grafica.que})`;
+    const colorHoy = `url(#g-hoy-${grafica.que})`;
     grafica.x = puntos.map((_, i) => i * paso + paso / 2);
 
     puntos.forEach((p, i) => {
@@ -640,7 +656,7 @@ function dibujarGrafica(animar = true) {
     const trazo = grafica.x.map((x, i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y[i].toFixed(1)}`).join(' ');
 
     lienzo.append(svg('line', { x1: 0, x2: ANCHO, y1: y[0], y2: y[0], 'stroke-dasharray': '3 4' }, { stroke: 'var(--linea)' }));
-    const area = svg('path', { d: `${trazo} L${ANCHO} ${BASE} L0 ${BASE} Z` }, { fill: 'var(--acento)', fillOpacity: 0.12 });
+    const area = svg('path', { d: `${trazo} L${ANCHO} ${BASE} L0 ${BASE} Z` }, { fill: 'url(#g-area)' });
     const linea = svg('path', { d: trazo, fill: 'none', 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, { stroke: 'var(--acento)' });
     lienzo.append(area, linea);
 
@@ -750,6 +766,7 @@ function dibujarMes() {
   $('#apartado-mes').textContent = apartado > 0 ? `Apartaste ${dinero.format(apartado)} para tus metas este mes` : '';
   $('#apartado-mes').hidden = apartado === 0;
   dibujarComparacionMes();
+  dibujarAnillo(ingresos, gastos);
 
   dibujarLista($('#lista'), delMes.slice(0, RECIENTES), 'Aún no hay movimientos este mes. Toca + para agregar el primero.');
   $('#ver-todos').hidden = delMes.length <= RECIENTES;
@@ -758,6 +775,27 @@ function dibujarMes() {
 
   if (!$('#vista-detalle').hidden) dibujarDetalle();
   if (!$('#vista-buscar').hidden) dibujarBusqueda();
+}
+
+// ---------- Anillo del mes (en "Tu dinero") ----------
+// Cuánto de lo que ganaste en el mes ya se fue en gastos. Si no has ganado nada, no se muestra.
+const LARGO_ANILLO = 264; // la vuelta completa del círculo (2 × π × 42)
+
+function dibujarAnillo(ingresos, gastos) {
+  const anillo = $('#anillo-mes');
+  anillo.hidden = ingresos <= 0;
+  if (anillo.hidden) return;
+  const porcentaje = Math.round((gastos / ingresos) * 100);
+  $('#anillo-pct').textContent = `${porcentaje}%`;
+  anillo.classList.toggle('pasado', porcentaje > 100); // gastaste más de lo que ganaste
+  const arco = $('#anillo-arco');
+  requestAnimationFrame(() => (arco.style.strokeDashoffset = LARGO_ANILLO * (1 - Math.min(porcentaje, 100) / 100)));
+}
+
+// ---------- Botones rápidos (Gasto · Ahorrar · Ingreso) ----------
+
+for (const boton of document.querySelectorAll('[data-rapido]')) {
+  boton.addEventListener('click', () => abrirFormulario({ tipo: boton.dataset.rapido }));
 }
 
 // ---------- Comparación con el mes pasado ----------
@@ -792,6 +830,11 @@ function compararMes(mes, modo) {
   };
 }
 
+$('#abrir-comparar').addEventListener('click', () => {
+  dibujarComparacionMes();
+  abrirHoja($('#hoja-comparar'));
+});
+
 for (const boton of document.querySelectorAll('[data-comparar]')) {
   boton.addEventListener('click', () => {
     modoComparacion = boton.dataset.comparar;
@@ -802,10 +845,10 @@ for (const boton of document.querySelectorAll('[data-comparar]')) {
 
 function dibujarComparacionMes() {
   const { actual, pasado, nombrePasado, aEstasAlturas, esEsteMes } = compararMes($('#mes').value, modoComparacion);
-  const tarjeta = $('#comparacion-mes');
-  // Sin nada registrado el mes pasado no hay con qué comparar.
-  tarjeta.hidden = pasado.cuantos === 0;
-  if (tarjeta.hidden) return;
+  // Sin nada registrado el mes pasado no hay con qué comparar: ni sale el link "Comparar".
+  const enlace = $('#abrir-comparar');
+  enlace.hidden = pasado.cuantos === 0;
+  if (enlace.hidden) return;
   // El selector solo tiene sentido en el mes que va corriendo; un mes que ya pasó se compara completo.
   $('#comparacion-modo').hidden = !esEsteMes;
   document.querySelectorAll('[data-comparar]').forEach((b) => b.classList.toggle('activo', b.dataset.comparar === modoComparacion));
@@ -2001,7 +2044,7 @@ function mostrarVista(nombre) {
     if (boton.dataset.vista === seccion) boton.setAttribute('aria-current', 'page');
     else boton.removeAttribute('aria-current');
   }
-  $('#boton-agregar').hidden = nombre !== 'dinero';
+  $('#boton-agregar').hidden = nombre === 'buscar'; // el + está en todas las secciones, junto a la barra
   window.scrollTo(0, 0);
   // Al entrar a una sección se repiten sus animaciones.
   if (nombre === 'detalle') {

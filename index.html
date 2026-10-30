@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Kashiki</title>
   <meta name="description" content="Kashiki: respira, ahorra, crece. Tu dinero, tus metas y tu racha.">
-  <meta name="theme-color" content="#0B0F17">
+  <meta name="theme-color" content="#07090E">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=38">
+  <link rel="stylesheet" href="styles.css?v=39">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -54,10 +54,27 @@
     <section id="vista-dinero" class="vista">
       <!-- En el teléfono las columnas no se notan; en la compu se ponen lado a lado -->
       <div class="columna">
+      <!-- Tarjeta principal: tu dinero, cómo vas contra el mes pasado y el anillo del mes -->
       <div class="saldo-bloque">
         <span id="saldo-etiqueta" class="suave">Tu dinero</span>
         <strong id="saldo" class="saldo">$0.00</strong>
         <span id="comparacion" class="comparacion"></span>
+        <!-- Anillo: cuánto de lo que ganaste este mes ya se fue en gastos -->
+        <div id="anillo-mes" class="anillo" hidden>
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <defs><linearGradient id="g-anillo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color: var(--acento-3)"/><stop offset="1" style="stop-color: var(--acento-2)"/></linearGradient></defs>
+            <circle class="anillo-fondo" cx="50" cy="50" r="42"/>
+            <circle id="anillo-arco" class="anillo-arco" cx="50" cy="50" r="42" stroke-dasharray="264" stroke-dashoffset="264"/>
+          </svg>
+          <div class="anillo-centro"><b id="anillo-pct">0%</b><small>gastado de<br>lo ganado</small></div>
+        </div>
+      </div>
+
+      <!-- Botones rápidos: gasto a la izquierda (flecha abajo) e ingreso a la derecha (flecha arriba) -->
+      <div class="rapidos">
+        <button type="button" class="rapido gasto" data-rapido="gasto"><i class="ti ti-arrow-down-left" aria-hidden="true"></i>Gasto</button>
+        <button type="button" class="rapido ahorro" data-rapido="ahorro"><i class="ti ti-pig-money" aria-hidden="true"></i>Ahorrar</button>
+        <button type="button" class="rapido ingreso" data-rapido="ingreso"><i class="ti ti-arrow-up-right" aria-hidden="true"></i>Ingreso</button>
       </div>
       <!-- Aviso de pagos fijos que se cobran en los próximos días; al picarle lleva a Pagos -->
       <button type="button" id="aviso-fijos" class="aviso-fijos" hidden>
@@ -99,29 +116,21 @@
       </div>
       <!-- Al picar un cuadro se abren solo esos movimientos -->
       <div class="dos-columnas">
-        <button type="button" class="tarjeta mini boton-tarjeta" data-detalle="ingreso">
-          <span class="suave">Ingresos <i class="ti ti-chevron-right" aria-hidden="true"></i></span>
-          <strong id="total-ingresos" class="positivo">$0.00</strong>
-        </button>
-        <button type="button" class="tarjeta mini boton-tarjeta" data-detalle="gasto">
-          <span class="suave">Gastos <i class="ti ti-chevron-right" aria-hidden="true"></i></span>
+        <button type="button" class="tarjeta mini boton-tarjeta cuadro-mes gasto" data-detalle="gasto">
+          <span class="cuadro-arriba"><span class="cuadro-icono"><i class="ti ti-arrow-down-left" aria-hidden="true"></i></span><i class="ti ti-chevron-right" aria-hidden="true"></i></span>
+          <span class="suave">Gastos</span>
           <strong id="total-gastos" class="negativo">$0.00</strong>
         </button>
+        <button type="button" class="tarjeta mini boton-tarjeta cuadro-mes ingreso" data-detalle="ingreso">
+          <span class="cuadro-arriba"><span class="cuadro-icono"><i class="ti ti-arrow-up-right" aria-hidden="true"></i></span><i class="ti ti-chevron-right" aria-hidden="true"></i></span>
+          <span class="suave">Ingresos</span>
+          <strong id="total-ingresos" class="positivo">$0.00</strong>
+        </button>
       </div>
-      <p id="apartado-mes" class="suave pequeno"></p>
-
-      <!-- Comparación con el mes pasado: ganaste, gastaste y te quedó, con flechitas -->
-      <div id="comparacion-mes" class="tarjeta comparacion-mes" hidden>
-        <div class="titulo-seccion">
-          <h2><i class="ti ti-arrows-diff" aria-hidden="true"></i> <span id="comparacion-titulo">Contra el mes pasado</span></h2>
-        </div>
-        <!-- Solo en el mes actual: comparar contra el mismo día del mes pasado, o contra todo el mes pasado -->
-        <div id="comparacion-modo" class="segmentos chico" role="group" aria-label="Con qué comparar">
-          <button type="button" data-comparar="alturas" class="activo">A estas alturas</button>
-          <button type="button" data-comparar="completo">Mes completo</button>
-        </div>
-        <ul id="comparacion-filas" class="comparacion-filas"></ul>
-        <p id="comparacion-frase" class="suave pequeno"></p>
+      <div class="fila-mes">
+        <p id="apartado-mes" class="suave pequeno"></p>
+        <!-- La comparación con el mes pasado vive en su propia ventana, para que esta pantalla quede limpia -->
+        <button type="button" id="abrir-comparar" class="boton-texto link-comparar" hidden>Comparar <i class="ti ti-chevron-right" aria-hidden="true"></i></button>
       </div>
 
       <div class="titulo-seccion">
@@ -311,6 +320,23 @@
   </dialog>
 
   <!-- Hoja: nuevo pago pendiente -->
+  <!-- Hoja: comparación con el mes pasado (se abre con "Comparar" en Dinero) -->
+  <dialog id="hoja-comparar" class="hoja">
+    <div class="hoja-contenido">
+      <div class="hoja-arriba"><div class="agarradera"></div><button type="button" class="cerrar-hoja" data-cierra aria-label="Cerrar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
+      <div id="comparacion-mes" class="comparacion-mes">
+        <h2><i class="ti ti-arrows-diff" aria-hidden="true"></i> <span id="comparacion-titulo">Contra el mes pasado</span></h2>
+        <!-- Solo en el mes actual: comparar contra el mismo día del mes pasado, o contra todo el mes pasado -->
+        <div id="comparacion-modo" class="segmentos chico" role="group" aria-label="Con qué comparar">
+          <button type="button" data-comparar="alturas" class="activo">A estas alturas</button>
+          <button type="button" data-comparar="completo">Mes completo</button>
+        </div>
+        <ul id="comparacion-filas" class="comparacion-filas"></ul>
+        <p id="comparacion-frase" class="suave pequeno"></p>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Hoja: nuevo pago fijo -->
   <dialog id="hoja-fijo" class="hoja">
     <form id="form-fijo">
@@ -601,6 +627,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=38"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>

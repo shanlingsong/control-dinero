@@ -1,17 +1,20 @@
-/* Mi Dinero · estilo Noche Chile */
+/* Kashiki · estilo Coral (inspirado en Quantix, Pulse y apps de banco) */
 
 :root {
-  --fondo: #0B0F17;
-  --tarjeta: #151B26;
-  --tarjeta-2: #1C2432;
-  --linea: #232B3A;
-  --texto: #EEF1F6;
-  --suave: #8A93A6;
+  --fondo: #07090E;
+  --tarjeta: #111319;   /* tarjetas: casi negro, con un toque de vidrio */
+  --tarjeta-2: #1A1D26;
+  --linea: #23262F;
+  --texto: #F2F4F8;
+  --suave: #8C94A6;
   --claro: #C9D1E0;
-  --acento: #FF5A4E;   /* rojo chile */
-  --acento-2: #FFB347; /* naranja guajillo */
-  --positivo: #3DDC97;
-  --negativo: #FF5A4E;
+  --acento: #FF4F7B;    /* coral (rosita) */
+  --acento-2: #FF9A8B;  /* salmón, el acento suave */
+  --acento-3: #E8365F;  /* coral oscuro, para degradados */
+  --tinte: 255 79 123;  /* el coral en números, para transparencias: rgb(var(--tinte) / 0.2) */
+  --tinte-2: 255 154 139;
+  --positivo: #3DDC97;  /* ingresos: siempre verde */
+  --negativo: #FF5A52;  /* gastos: siempre rojo */
   --rebote: cubic-bezier(.2, .9, .3, 1.25);
   --suavecito: cubic-bezier(.2, .8, .2, 1);
   color-scheme: dark;
@@ -606,7 +609,7 @@ a.boton-secundario { text-decoration: none; }
   font-size: 1.7rem;
   display: grid;
   place-items: center;
-  box-shadow: 0 8px 24px rgb(255 90 78 / 0.35);
+  box-shadow: 0 8px 24px rgb(var(--tinte) / 0.35);
   transition: transform .2s var(--rebote), opacity .2s;
 }
 .flotante[hidden] { display: grid; opacity: 0; transform: scale(.6); pointer-events: none; }
@@ -868,7 +871,7 @@ button.saludo:active { background: var(--tarjeta); }
 .hoja-contenido { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); }
 .lista-secciones { display: grid; gap: 2px; margin: 0 -6px; }
 .opcion-seccion { display: flex; align-items: center; border-radius: 14px; transition: background .15s; }
-.opcion-seccion.actual { background: rgb(255 179 71 / 0.08); }
+.opcion-seccion.actual { background: rgb(var(--tinte-2) / 0.08); }
 .opcion-elegir {
   flex: 1;
   min-width: 0;
@@ -893,7 +896,7 @@ button.saludo:active { background: var(--tarjeta); }
   color: var(--suave);
   font-size: 1.2rem;
 }
-.opcion-seccion.actual .opcion-icono { background: rgb(255 179 71 / 0.16); color: var(--acento-2); }
+.opcion-seccion.actual .opcion-icono { background: rgb(var(--tinte-2) / 0.16); color: var(--acento-2); }
 .opcion-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opcion-seccion.actual .opcion-nombre { font-weight: 600; }
 .palomita { font-size: 1.35rem; color: var(--acento-2); visibility: hidden; }
@@ -935,8 +938,8 @@ button.saludo:active { background: var(--tarjeta); }
   align-items: center;
   gap: 10px;
   width: 100%;
-  border: 1px solid rgb(255 179 71 / 0.35);
-  background: rgb(255 179 71 / 0.08);
+  border: 1px solid rgb(var(--tinte-2) / 0.35);
+  background: rgb(var(--tinte-2) / 0.08);
   color: var(--texto);
   border-radius: 14px;
   padding: 10px 12px;
@@ -1067,7 +1070,7 @@ a.fila-ajuste { text-decoration: none; }
   background: var(--tarjeta-2);
 }
 .comp-cambio.bien { color: var(--positivo); background: rgb(61 220 151 / 0.12); }
-.comp-cambio.mal { color: var(--negativo); background: rgb(255 90 78 / 0.12); }
+.comp-cambio.mal { color: var(--negativo); background: rgb(255 90 82 / 0.12); }
 #comparacion-frase { margin: 0; }
 /* ---------- Partes que solo existen en la compu ---------- */
 .columna { display: contents; } /* en el teléfono es como si no existiera */
@@ -1110,7 +1113,7 @@ a.fila-ajuste { text-decoration: none; }
     transition: background .2s, color .2s;
   }
   .barra-secciones [data-vista]:hover { background: var(--tarjeta-2); color: var(--texto); }
-  .barra-secciones [data-vista][aria-current="page"] { background: rgb(255 90 78 / 0.12); }
+  .barra-secciones [data-vista][aria-current="page"] { background: rgb(var(--tinte) / 0.12); }
   .barra-secciones .ti { font-size: 1.3rem; }
   .barra-secciones [data-vista][aria-current="page"] .ti { transform: none; }
   .punto { position: static; margin-left: auto; }
@@ -1133,7 +1136,7 @@ a.fila-ajuste { text-decoration: none; }
     background: var(--acento);
     color: var(--fondo);
     font-weight: 600;
-    box-shadow: 0 8px 24px rgb(255 90 78 / 0.25);
+    box-shadow: 0 8px 24px rgb(var(--tinte) / 0.25);
     transition: transform .15s;
   }
   .agregar-lateral:hover { transform: translateY(-1px); }
@@ -1175,3 +1178,175 @@ a.fila-ajuste { text-decoration: none; }
 /* El iPhone hace zoom solo al tocar un campo de texto con letra menor a 16px.
    Con 16px exactos la pantalla se queda tal cual al escribir. */
 .campo, .buscador input, .selector-mes, .ia input { font-size: 16px; }
+
+/* ==========================================================
+   Diseño Coral: brillo suave, tarjetas redondas, botones rápidos,
+   anillo del mes y barra de abajo flotante con el + aparte.
+   (Va al final para ganarle a los estilos de arriba.)
+   ========================================================== */
+
+/* Brillo suave y centrado detrás de "Tu dinero" (no en una esquina) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -10% -20% auto;
+  height: 55vh;
+  background:
+    radial-gradient(closest-side at 50% 45%, rgb(var(--tinte) / 0.15), transparent 75%),
+    radial-gradient(closest-side at 50% 10%, rgb(var(--tinte-2) / 0.07), transparent 70%);
+  filter: blur(20px);
+  pointer-events: none;
+  z-index: -1;
+}
+body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+
+/* Encabezado translúcido */
+.encabezado { background: rgb(7 9 14 / 0.82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.avatar { width: 44px; height: 44px; background: linear-gradient(135deg, var(--acento), var(--acento-2)) center / cover no-repeat; color: #fff; font-weight: 800; }
+.saludo strong { font-size: 1.12rem; font-weight: 800; letter-spacing: -0.02em; }
+.boton-icono { width: 40px; height: 40px; border-radius: 50%; background: var(--tarjeta-2); }
+.pastilla-racha { height: 40px; background: var(--tarjeta-2); }
+.pastilla-entrar { border-color: var(--acento); color: var(--acento); }
+
+/* Tarjetas más redondas */
+.tarjeta { border-radius: 24px; padding: 16px; }
+.tarjeta.mini { border-radius: 22px; padding: 14px; }
+
+/* Tarjeta principal "Tu dinero" */
+.saldo-bloque {
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  padding: 20px;
+  border-radius: 28px;
+  background: linear-gradient(160deg, rgb(var(--tinte) / 0.17), rgb(255 255 255 / 0.03) 58%);
+  border: 1px solid rgb(var(--tinte) / 0.28);
+}
+.saldo-bloque > * { grid-column: 1; }
+#saldo-etiqueta { color: #FFD9E2; }
+.saldo { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1.05; }
+.comparacion { font-size: 0.8rem; }
+
+/* El anillo del mes */
+.anillo { grid-column: 2; grid-row: 1 / span 3; width: 88px; height: 88px; position: relative; align-self: center; }
+.anillo[hidden] { display: none; }
+.anillo svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.anillo-fondo { fill: none; stroke: rgb(255 255 255 / 0.08); stroke-width: 10; }
+.anillo-arco { fill: none; stroke: url(#g-anillo); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1.1s var(--suavecito); }
+.anillo.pasado .anillo-arco { stroke: var(--negativo); }
+.anillo-centro { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.anillo-centro b { font-size: 1.1rem; font-weight: 800; }
+.anillo-centro small { font-size: 0.58rem; color: var(--suave); line-height: 1.15; }
+.anillo.pasado .anillo-centro b { color: var(--negativo); }
+
+/* Botones rápidos */
+.rapidos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.rapido {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 52px;
+  border-radius: 18px;
+  background: var(--tarjeta);
+  border: 1px solid var(--linea);
+  color: var(--texto);
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: transform .12s;
+}
+.rapido:active { transform: scale(.95); }
+.rapido .ti { font-size: 1.25rem; }
+.rapido.gasto .ti { color: var(--negativo); }
+.rapido.ingreso .ti { color: var(--positivo); }
+.rapido.ahorro .ti { color: var(--acento-2); }
+
+/* Selectores: pastillas con el activo en degradado */
+.segmentos { background: rgb(0 0 0 / 0.35); border-radius: 999px; }
+.segmentos button, .segmentos label span { border-radius: 999px; }
+.segmentos button.activo, .segmentos input:checked + span {
+  background: linear-gradient(135deg, var(--acento), var(--acento-3));
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(var(--tinte) / 0.35);
+}
+.chip.activo { background: rgb(var(--tinte) / 0.14); border-color: rgb(var(--tinte) / 0.6); color: var(--texto); }
+
+.selector-mes { border-radius: 999px; background: var(--tarjeta-2); padding: 6px 12px; }
+
+/* Cuadros de Gastos (izquierda) e Ingresos (derecha) */
+.cuadro-mes { gap: 8px; }
+.cuadro-arriba { display: flex; align-items: center; justify-content: space-between; }
+.cuadro-icono { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 1.15rem; }
+.cuadro-mes.gasto .cuadro-icono { background: rgb(255 90 82 / 0.14); color: var(--negativo); }
+.cuadro-mes.ingreso .cuadro-icono { background: rgb(61 220 151 / 0.14); color: var(--positivo); }
+.cuadro-arriba > .ti { color: var(--suave); }
+.boton-tarjeta .cuadro-arriba + .suave { display: block; }
+.tarjeta.mini.cuadro-mes strong { font-size: 1.25rem; font-weight: 700; }
+.fila-mes { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -6px; }
+.fila-mes:has(#apartado-mes[hidden]):has(#abrir-comparar[hidden]) { display: none; }
+.link-comparar { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: var(--acento-2); white-space: nowrap; }
+
+/* Movimientos: cada uno en su tarjetita */
+.deslizable { border-radius: 20px; }
+.fondo-borrar { border-radius: 19px; }
+.fila { border-radius: 20px; padding: 12px; }
+.icono-cat { width: 42px; height: 42px; border-radius: 14px; }
+.ver-todos { border-radius: 16px; height: 46px; }
+
+/* Barra de abajo flotante (con nombres) y el + aparte */
+.barra-secciones {
+  left: 16px;
+  right: 96px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  max-width: 400px;
+  margin: 0;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--linea);
+  background: rgb(20 22 30 / 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.barra-secciones button { padding: 6px 10px; border-radius: 999px; font-size: 0.66rem; gap: 2px; }
+.barra-secciones .ti { font-size: 1.35rem; }
+.barra-secciones button[aria-current="page"] { background: rgb(var(--tinte) / 0.14); }
+.barra-secciones button[aria-current="page"] .ti { transform: none; }
+.punto { top: 4px; left: auto; right: 8px; }
+.flotante {
+  right: 16px;
+  bottom: calc(17px + env(safe-area-inset-bottom));
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--acento), var(--acento-3));
+  color: #fff;
+  box-shadow: 0 10px 30px rgb(var(--tinte) / 0.5);
+}
+.aviso { bottom: calc(100px + env(safe-area-inset-bottom)); }
+
+/* En la compu la barra sigue siendo el menú de la izquierda (le gana a lo de arriba) */
+@media (min-width: 900px) {
+  .barra-secciones {
+    left: 0;
+    right: auto;
+    bottom: 0;
+    height: auto;
+    max-width: none;
+    justify-content: flex-start;
+    padding: 22px 14px;
+    border-radius: 0;
+    border: none;
+    border-right: 1px solid var(--linea);
+    background: var(--tarjeta);
+    backdrop-filter: none;
+  }
+  .barra-secciones [data-vista] { padding: 11px 14px; border-radius: 12px; font-size: 0.95rem; gap: 12px; }
+  .barra-secciones .ti { font-size: 1.3rem; }
+  .barra-secciones .agregar-lateral { background: linear-gradient(135deg, var(--acento), var(--acento-3)); color: #fff; }
+  .punto { right: auto; }
+  body { padding-bottom: 32px; }
+  .aviso { bottom: 24px; }
+}
