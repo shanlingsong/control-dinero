@@ -812,6 +812,8 @@ a.boton-secundario { text-decoration: none; }
   animation: aparecer .3s var(--rebote);
 }
 .aviso[hidden] { display: none; }
+/* Dentro de una hoja abierta, el aviso sale arriba para no tapar el botón de Guardar */
+.hoja .aviso { bottom: auto; top: calc(12px + env(safe-area-inset-top)); }
 .aviso .boton-texto { color: var(--acento); }
 
 code { font-size: 0.8em; background: var(--fondo); padding: 1px 5px; border-radius: 5px; }

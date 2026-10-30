@@ -54,10 +54,10 @@ const dinero = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MX
 const corto = (n) => '$' + Math.round(n).toLocaleString('es-MX');
 
 const datos = {
-  movimientos: leer(CLAVES.movimientos, []),
-  metas: leer(CLAVES.metas, []),
-  dias: leer(CLAVES.dias, []),
-  pendientes: leer(CLAVES.pendientes, []),
+  movimientos: limpiar('movimientos', leer(CLAVES.movimientos, [])),
+  metas: limpiar('metas', leer(CLAVES.metas, [])),
+  dias: limpiar('dias', leer(CLAVES.dias, [])),
+  pendientes: limpiar('pendientes', leer(CLAVES.pendientes, [])),
 };
 let pendientes = leer(CLAVE_PENDIENTES, []); // cambios que aún no se suben a la nube
 let perfil = leer(CLAVE_PERFIL, { nombre: '', foto: '' });
@@ -82,6 +82,42 @@ function escribir(clave, valor) {
 
 function guardarColeccion(nombre) {
   escribir(CLAVES[nombre], datos[nombre]);
+}
+
+// Revisa que cada registro tenga lo necesario (monto, fecha, tipo…). Lo que viene de un respaldo,
+// de Google Sheets o de una versión vieja puede venir chueco; un solo dato malo podía dejar
+// la app trabada en la pantalla de carga. Lo que se puede arreglar se arregla; lo que no, se descarta.
+function limpiar(nombre, lista) {
+  if (!Array.isArray(lista)) return [];
+  return lista.map((x) => normalizar(nombre, x)).filter(Boolean);
+}
+
+function normalizar(nombre, x) {
+  const ES_FECHA = /^\d{4}-\d{2}-\d{2}$/; // va aquí adentro porque esto corre antes que el resto del archivo
+  if (!x || typeof x !== 'object' || !x.id) return null;
+  const o = { ...x, id: String(x.id) };
+  const creado = Number(o.creado);
+  o.creado = Number.isFinite(creado) && creado > 0 ? creado : Date.now();
+  const texto = (valor) => (valor == null ? '' : String(valor));
+  if (nombre === 'dias') return ES_FECHA.test(o.id) ? o : null;
+  if (nombre === 'metas') {
+    o.objetivo = Number(o.objetivo);
+    o.nombre = texto(o.nombre);
+    return o.objetivo > 0 && o.nombre ? o : null;
+  }
+  o.monto = Number(o.monto);
+  if (!(o.monto > 0)) return null;
+  if (!ES_FECHA.test(o.fecha)) o.fecha = fechaLocal(new Date(o.creado));
+  o.nota = texto(o.nota);
+  if (nombre === 'movimientos') {
+    if (!['ingreso', 'gasto', 'ahorro'].includes(o.tipo)) return null;
+    o.categoria = texto(o.categoria) || 'Otros';
+    o.meta = texto(o.meta);
+  } else {
+    if (!['debo', 'me-deben'].includes(o.tipo)) return null;
+    o.persona = texto(o.persona) || 'Alguien';
+  }
+  return o;
 }
 
 // ---------- Fechas ----------
@@ -207,33 +243,76 @@ function encolar(cambio) {
 }
 
 let sincronizando = false;
+let otraVez = false; // llegó un cambio mientras se sincronizaba: hay que dar otra vuelta
+// Mientras no contestes "¿Subimos lo de este teléfono?", no se descarga nada de la nube
+// (si se descargara, lo del teléfono se reemplazaría y se perdería).
+let esperandoDecision = false;
+
+// Un error de internet se reintenta después; cualquier otro (dato que la nube rechaza)
+// se aparta para que no atore la fila para siempre.
+const esErrorDeRed = (error) => !navigator.onLine || /fetch|network|Load failed|timeout/i.test(String(error?.message || error));
 
 async function sincronizar() {
-  if (!cuenta || !db || sincronizando) return;
+  if (!cuenta || !db) return;
+  if (esperandoDecision) {
+    abrirHoja($('#hoja-subir'));
+    return;
+  }
+  if (sincronizando) {
+    otraVez = true;
+    return;
+  }
   sincronizando = true;
   mostrarEstado('ti-refresh', 'Sincronizando…');
+  let rechazados = 0;
   try {
-    // 1. Sube los cambios pendientes, en orden.
-    while (pendientes.length > 0) {
-      await mandarCambio(pendientes[0]);
-      pendientes.shift();
-      escribir(CLAVE_PENDIENTES, pendientes);
-    }
-    // 2. Descarga todo: la nube es la fuente de verdad.
-    const nombres = Object.keys(CLAVES);
-    const respuestas = await Promise.all(nombres.map((nombre) => db.from(nombre).select(COLUMNAS[nombre].join(','))));
-    const fallo = respuestas.find((r) => r.error);
-    if (fallo) throw fallo.error;
-    nombres.forEach((nombre, i) => {
-      datos[nombre] = respuestas[i].data.map((fila) => deFila(nombre, fila));
-      guardarColeccion(nombre);
-    });
+    do {
+      otraVez = false;
+      // 1. Sube los cambios pendientes, en orden.
+      while (pendientes.length > 0) {
+        try {
+          await mandarCambio(pendientes[0]);
+        } catch (error) {
+          if (esErrorDeRed(error)) throw error;
+          console.warn('La nube rechazó un cambio y se apartó:', pendientes[0], error);
+          rechazados++;
+        }
+        pendientes.shift();
+        escribir(CLAVE_PENDIENTES, pendientes);
+      }
+      // 2. Descarga todo: la nube es la fuente de verdad.
+      const nombres = Object.keys(CLAVES);
+      const respuestas = await Promise.all(nombres.map((nombre) => db.from(nombre).select(COLUMNAS[nombre].join(','))));
+      const fallo = respuestas.find((r) => r.error);
+      if (fallo) throw fallo.error;
+      nombres.forEach((nombre, i) => {
+        datos[nombre] = limpiar(nombre, respuestas[i].data.map((fila) => deFila(nombre, fila)));
+      });
+      // Lo que agregaste o borraste MIENTRAS se descargaba todavía no está en la nube:
+      // se vuelve a aplicar encima para que no "desaparezca" de la pantalla.
+      for (const cambio of pendientes) aplicarCambio(cambio);
+      for (const nombre of nombres) guardarColeccion(nombre);
+    } while (otraVez || pendientes.length > 0);
     dibujar();
-    mostrarEstado('ti-cloud-check', 'Guardado en tu cuenta');
+    if (rechazados > 0) {
+      mostrarEstado('ti-alert-triangle', `Guardado, pero ${rechazados} ${rechazados === 1 ? 'registro tenía' : 'registros tenían'} datos inválidos y no se subieron`, true);
+    } else {
+      mostrarEstado('ti-cloud-check', 'Guardado en tu cuenta');
+    }
   } catch (error) {
     mostrarEstado('ti-cloud-off', explicarError(error), true);
   } finally {
     sincronizando = false;
+  }
+}
+
+function aplicarCambio(cambio) {
+  const lista = datos[cambio.coleccion];
+  if (!lista) return;
+  if (cambio.accion === 'agregar') {
+    if (!lista.some((x) => x.id === cambio.objeto.id)) lista.push(cambio.objeto);
+  } else {
+    datos[cambio.coleccion] = lista.filter((x) => x.id !== cambio.id);
   }
 }
 
@@ -924,7 +1003,10 @@ function vacio(texto) {
 
 function dibujarMetas() {
   const total = datos.movimientos.reduce((t, m) => t + efecto(m), 0);
-  const enMetas = sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro'));
+  // Solo cuenta lo apartado en metas que todavía existen: si borras una meta,
+  // lo que habías apartado para ella regresa a "Disponible".
+  const metasVivas = new Set(datos.metas.map((meta) => meta.id));
+  const enMetas = sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro' && metasVivas.has(m.meta)));
   contar($('#total-disponible'), total - enMetas, 700);
   contar($('#total-metas'), enMetas, 700);
   $('#pista-saldo').hidden = datos.movimientos.some((m) => m.categoria === SALDO_INICIAL);
@@ -940,7 +1022,8 @@ function dibujarMetas() {
     const avance = Math.min(100, Math.round((ahorrado / meta.objetivo) * 100));
     const cumplida = ahorrado >= meta.objetivo;
 
-    const li = filaDeslizable('meta-fila', () => borrarConDeshacer('metas', meta, `Meta borrada: ${meta.nombre}`));
+    const aviso = ahorrado > 0 ? `Meta borrada: ${meta.nombre}. Lo apartado regresó a Disponible` : `Meta borrada: ${meta.nombre}`;
+    const li = filaDeslizable('meta-fila', () => borrarConDeshacer('metas', meta, aviso));
     const fila = li.querySelector('.fila');
     fila.classList.add('meta');
     if (cumplida) fila.classList.add('cumplida');
@@ -1120,6 +1203,11 @@ function avisar(texto, textoAccion, alTocar) {
     aviso.hidden = true;
     alTocar?.();
   };
+  // Una hoja abierta queda "encima de todo"; si el aviso se queda afuera, no se ve.
+  // Por eso se mete dentro de la hoja abierta (y regresa a su lugar cuando la hoja se cierra).
+  const hojaAbierta = document.querySelector('dialog[open]:not(.cerrando)');
+  const lugar = hojaAbierta || document.body;
+  if (aviso.parentElement !== lugar) lugar.append(aviso);
   aviso.hidden = true;
   aviso.getBoundingClientRect();
   aviso.hidden = false;
@@ -1137,6 +1225,8 @@ function abrirHoja(hoja) {
   hoja.style.transition = '';
   if (!hoja.open) hoja.showModal();
   hoja.scrollTop = 0;
+  // Al abrir, el navegador pone el cursor en el primer botón (la X); se quita para que Enter guarde.
+  if (document.activeElement?.classList.contains('cerrar-hoja')) document.activeElement.blur();
 }
 
 function cerrarHoja(hoja) {
@@ -1159,7 +1249,26 @@ for (const hoja of document.querySelectorAll('.hoja')) {
     e.preventDefault();
     cerrarHoja(hoja);
   });
+  // Si el aviso estaba dentro de esta hoja, regresa a la pantalla normal para seguir viéndose.
+  hoja.addEventListener('close', () => {
+    const aviso = $('#aviso');
+    if (hoja.contains(aviso)) document.body.append(aviso);
+  });
 }
+
+// Mientras una hoja se está cerrando, ya no acepta otro "Guardar"
+// (un doble toque rápido creaba el mismo movimiento dos veces).
+document.addEventListener(
+  'submit',
+  (e) => {
+    const hoja = e.target.closest('dialog');
+    if (hoja && (!hoja.open || hoja.classList.contains('cerrando'))) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  },
+  true
+);
 for (const boton of document.querySelectorAll('[data-cierra]')) {
   boton.addEventListener('click', () => cerrarHoja(boton.closest('dialog')));
 }
@@ -1175,7 +1284,9 @@ for (const hoja of document.querySelectorAll('.hoja')) {
 
   hoja.addEventListener('touchstart', (e) => {
     const desdeArriba = e.target.closest('.hoja-arriba');
-    inicio = e.touches.length === 1 && (desdeArriba || hoja.scrollTop <= 0) ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    // Al acomodar la foto o mover un deslizador, el dedo baja pero NO quieres cerrar la hoja.
+    const otroGesto = e.target.closest('#recorte, input[type=range]');
+    inicio = e.touches.length === 1 && !otroGesto && (desdeArriba || hoja.scrollTop <= 0) ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
     bajando = null;
     distancia = 0;
   }, { passive: true });
@@ -1195,22 +1306,27 @@ for (const hoja of document.querySelectorAll('.hoja')) {
     hoja.style.transform = `translateY(${distancia}px)`;
   }, { passive: false });
 
-  hoja.addEventListener('touchend', () => {
+  // touchcancel: el teléfono interrumpió el gesto (una llamada, una notificación…): la hoja regresa.
+  const soltar = (cancelado) => {
     if (!bajando) return;
     bajando = null;
     hoja.style.transition = 'transform .22s ease-out';
-    if (distancia > DESLIZAR_PARA_CERRAR) {
+    clearTimeout(hoja.cierre);
+    if (!cancelado && distancia > DESLIZAR_PARA_CERRAR) {
+      document.activeElement?.blur();
       hoja.style.transform = 'translateY(100%)';
-      setTimeout(() => {
+      hoja.cierre = setTimeout(() => {
         hoja.close();
         hoja.style.transition = '';
         hoja.style.transform = '';
       }, 220);
     } else {
       hoja.style.transform = '';
-      setTimeout(() => (hoja.style.transition = ''), 220);
+      hoja.cierre = setTimeout(() => (hoja.style.transition = ''), 220);
     }
-  });
+  };
+  hoja.addEventListener('touchend', () => soltar(false));
+  hoja.addEventListener('touchcancel', () => soltar(true));
 }
 
 // ---------- Formulario de movimientos (teclado propio) ----------
@@ -1351,6 +1467,8 @@ document.addEventListener('keydown', (e) => {
   if (e.target.matches('input:not([type=radio]), textarea, select')) return; // escribiendo la nota o la fecha
   const tecla = e.key === 'Backspace' ? 'borrar' : e.key === ',' ? '.' : e.key;
   if (tecla === 'Enter') {
+    // Enter sobre un botón (la X, una categoría…) hace lo de ese botón, no guardar.
+    if (e.target.matches('button')) return;
     e.preventDefault();
     $('#form').requestSubmit();
     return;
@@ -1376,6 +1494,7 @@ $('#form').addEventListener('submit', (evento) => {
   const monto = Math.round(parseFloat(formulario.monto) * 100) / 100;
   if (!monto) {
     temblarMonto();
+    avisar('Escribe cuánto fue con los números de abajo');
     return;
   }
   const meta = tipo === 'ahorro' ? datos.metas.find((x) => x.id === formulario.categoria) : null;
@@ -1464,6 +1583,9 @@ $('#form-pago').addEventListener('submit', (evento) => {
 
 function mostrarVista(nombre) {
   if (!$(`#vista-${nombre}`)) nombre = 'dinero';
+  // Si sales del detalle o de buscar con la barra de secciones, se quita su paso del historial;
+  // si no, el botón "atrás" del teléfono parecía no hacer nada.
+  if (nombre !== 'detalle' && nombre !== 'buscar' && (history.state?.detalle || history.state?.buscar)) history.back();
   for (const vista of document.querySelectorAll('.vista')) {
     vista.hidden = vista.id !== `vista-${nombre}`;
   }
@@ -1712,6 +1834,7 @@ function alEntrar() {
   const total = hayDatosLocales();
   if (!dueno && total > 0) {
     $('#subir-texto').textContent = `En este teléfono hay ${total} ${total === 1 ? 'registro' : 'registros'} (movimientos, metas, racha y pagos). ¿Los guardamos en tu cuenta para no perderlos?`;
+    esperandoDecision = true; // si cierras la hoja sin contestar, vuelve a preguntar después
     abrirHoja($('#hoja-subir'));
     return;
   }
@@ -1724,6 +1847,7 @@ $('#form-subir').addEventListener('submit', (evento) => {
   for (const nombre of Object.keys(CLAVES)) {
     for (const objeto of datos[nombre]) encolar({ accion: 'agregar', coleccion: nombre, objeto });
   }
+  esperandoDecision = false;
   escribir(CLAVE_DUENO, cuenta.id);
   cerrarHoja($('#hoja-subir'));
   sincronizar();
@@ -1731,6 +1855,7 @@ $('#form-subir').addEventListener('submit', (evento) => {
 });
 
 $('#subir-no').addEventListener('click', () => {
+  esperandoDecision = false;
   borrarDatosLocales();
   escribir(CLAVE_DUENO, cuenta.id);
   cerrarHoja($('#hoja-subir'));
@@ -1739,6 +1864,15 @@ $('#subir-no').addEventListener('click', () => {
 });
 
 $('#cerrar-sesion').addEventListener('click', async () => {
+  // Si hay cambios que aún no llegan a la nube, primero se intentan subir; si no se puede, no se cierra.
+  if (pendientes.length > 0) {
+    await sincronizar();
+    if (pendientes.length > 0) {
+      avisar(`Tienes ${pendientes.length} ${pendientes.length === 1 ? 'cambio' : 'cambios'} sin subir. Conéctate a internet antes de cerrar sesión para no perderlos.`);
+      return;
+    }
+  }
+  esperandoDecision = false;
   await db.auth.signOut();
   // Lo de esta cuenta se quita del teléfono; sigue guardado en la nube.
   borrarDatosLocales();
@@ -1761,7 +1895,7 @@ $('#traer-sheets').addEventListener('click', async () => {
     let traidos = 0;
     for (const nombre of Object.keys(CLAVES)) {
       const existentes = new Set(datos[nombre].map((x) => x.id));
-      for (const objeto of deSheets[nombre] || []) {
+      for (const objeto of limpiar(nombre, deSheets[nombre])) {
         if (existentes.has(objeto.id)) continue;
         datos[nombre].push(objeto);
         encolar({ accion: 'agregar', coleccion: nombre, objeto });
@@ -1842,12 +1976,14 @@ $('#telegram-conectar').addEventListener('click', async (evento) => {
   if (linkVigente()) return; // el link ya está listo: el navegador lo abre solo
 
   // Todavía no hay link: se abre la ventana ya (si se espera, el teléfono la bloquea) y se llena después.
+  // Si el teléfono no deja abrirla, NO se cambia la página de Kashiki (en la app instalada no hay
+  // botón de atrás y te quedarías atorado en Telegram): se deja el link listo para un segundo toque.
   evento.preventDefault();
   const ventana = window.open('', '_blank');
   try {
     const url = await pedirLink();
     if (ventana) ventana.location.href = url;
-    else location.href = url;
+    else $('#telegram-estado').textContent = 'Listo: pícale otra vez a "Conectar Telegram"';
   } catch (error) {
     ventana?.close();
     esperandoTelegram = false;
@@ -2059,7 +2195,7 @@ $('#importar').addEventListener('change', async (evento) => {
     for (const nombre of Object.keys(CLAVES)) {
       if (!Array.isArray(respaldo[nombre])) continue;
       const existentes = new Set(datos[nombre].map((x) => x.id));
-      const nuevos = respaldo[nombre].filter((x) => x.id && !existentes.has(x.id));
+      const nuevos = limpiar(nombre, respaldo[nombre]).filter((x) => !existentes.has(x.id));
       datos[nombre].push(...nuevos);
       guardarColeccion(nombre);
       for (const objeto of nuevos) encolar({ accion: 'agregar', coleccion: nombre, objeto });
@@ -2121,11 +2257,17 @@ function quitarCarga() {
 
 // ---------- Arranque ----------
 
+setTimeout(terminarCarga, 5000); // por si la nube tarda mucho (o algo falla), no te deja esperando
 progresoCarga(25);
 $('#mes').value = hoy().slice(0, 7);
-dibujar();
-mostrarIA();
-mostrarVista(leer('mi-dinero:vista', 'dinero'));
+// Si algo falla al dibujar, la app sigue arrancando en lugar de quedarse trabada en la pantalla de carga.
+try {
+  dibujar();
+  mostrarIA();
+  mostrarVista(leer('mi-dinero:vista', 'dinero'));
+} catch (error) {
+  console.error('Error al dibujar la app:', error);
+}
 progresoCarga(55);
 if (db) {
   setTimeout(() => progresoCarga(80), 400);
@@ -2134,7 +2276,6 @@ if (db) {
   ponerCuenta(null);
   terminarCarga();
 }
-setTimeout(terminarCarga, 5000); // por si la nube tarda mucho, no te deja esperando
 
 // ---------- Jalar hacia abajo para recargar (como en Instagram) ----------
 // Si estás hasta arriba y jalas hacia abajo, la pantalla baja contigo (el encabezado se queda)
@@ -2160,11 +2301,18 @@ function soltarAnimado(si) {
   $('main').classList.toggle('suelto', si);
 }
 
+let inicioJalonX = 0;
+let jalonDecidido = false; // ya se sabe si el dedo va hacia abajo (jalar) o de lado (otra cosa)
+
 document.addEventListener('touchstart', (e) => {
   const hojaAbierta = document.querySelector('dialog[open]');
-  inicioJalon = window.scrollY <= 0 && !hojaAbierta && e.touches.length === 1 ? e.touches[0].clientY : null;
+  // En la gráfica el dedo se usa para ver los días; ahí no se jala para recargar.
+  const enGrafica = e.target.closest?.('#grafica');
+  inicioJalon = window.scrollY <= 0 && !hojaAbierta && !enGrafica && e.touches.length === 1 ? e.touches[0].clientY : null;
   jalon = 0;
+  jalonDecidido = false;
   if (inicioJalon === null) return;
+  inicioJalonX = e.touches[0].clientX;
   soltarAnimado(false);
   $('#recargar').style.top = `${$('.encabezado').getBoundingClientRect().bottom}px`;
 }, { passive: true });
@@ -2172,6 +2320,17 @@ document.addEventListener('touchstart', (e) => {
 document.addEventListener('touchmove', (e) => {
   if (inicioJalon === null) return;
   const bajado = e.touches[0].clientY - inicioJalon;
+  // Si el dedo va más de lado que hacia abajo (por ejemplo, deslizando un movimiento para
+  // borrarlo), no es un jalón: se ignora el resto del gesto.
+  if (!jalonDecidido) {
+    const deLado = Math.abs(e.touches[0].clientX - inicioJalonX);
+    if (deLado + Math.abs(bajado) < 8) return;
+    jalonDecidido = true;
+    if (deLado > Math.abs(bajado)) {
+      inicioJalon = null;
+      return;
+    }
+  }
   if (bajado <= 0 || window.scrollY > 0) {
     jalon = 0;
     moverCirculo(0);
@@ -2193,6 +2352,15 @@ document.addEventListener('touchend', () => {
   moverCirculo(JALON_MINIMO); // la pantalla se queda un poco abajo mientras gira, como en Instagram
   $('#recargar').classList.add('girando');
   setTimeout(() => location.reload(), 350);
+});
+
+// El teléfono interrumpió el gesto (por ejemplo, bajaste el centro de notificaciones): todo regresa.
+document.addEventListener('touchcancel', () => {
+  if (inicioJalon === null) return;
+  inicioJalon = null;
+  jalon = 0;
+  soltarAnimado(true);
+  moverCirculo(0);
 });
 
 // Al volver a abrir la app, trae lo más nuevo de la nube y actualiza la racha.
