@@ -1972,6 +1972,55 @@ if (db) {
 }
 setTimeout(terminarCarga, 5000); // por si la nube tarda mucho, no te deja esperando
 
+// ---------- Jalar hacia abajo para recargar (como en Instagram) ----------
+// Si estás hasta arriba y jalas la pantalla hacia abajo, sale el circulito; al soltarlo pasando
+// la marca, la app se recarga y trae la versión más nueva y tus datos de la nube.
+const JALON_MINIMO = 70; // cuánto hay que jalar (en pixeles) para que recargue
+const JALON_MAXIMO = 110;
+let inicioJalon = null;
+let jalon = 0;
+
+function moverCirculo(distancia) {
+  const circulo = $('#recargar');
+  circulo.style.transform = `translateY(${distancia - 50}px) rotate(${distancia * 3}deg)`;
+  circulo.style.opacity = Math.min(1, distancia / JALON_MINIMO);
+  circulo.classList.toggle('listo', distancia >= JALON_MINIMO);
+}
+
+document.addEventListener('touchstart', (e) => {
+  const hojaAbierta = document.querySelector('dialog[open]');
+  inicioJalon = window.scrollY <= 0 && !hojaAbierta && e.touches.length === 1 ? e.touches[0].clientY : null;
+  jalon = 0;
+  $('#recargar').classList.remove('suelto');
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+  if (inicioJalon === null) return;
+  const bajado = e.touches[0].clientY - inicioJalon;
+  if (bajado <= 0 || window.scrollY > 0) {
+    jalon = 0;
+    moverCirculo(0);
+    return;
+  }
+  e.preventDefault(); // que la página no rebote mientras jalas
+  jalon = Math.min(JALON_MAXIMO, bajado * 0.5); // se siente "pesado", como en otras apps
+  moverCirculo(jalon);
+}, { passive: false });
+
+document.addEventListener('touchend', () => {
+  if (inicioJalon === null) return;
+  inicioJalon = null;
+  const circulo = $('#recargar');
+  circulo.classList.add('suelto');
+  if (jalon < JALON_MINIMO) {
+    moverCirculo(0);
+    return;
+  }
+  moverCirculo(JALON_MINIMO);
+  circulo.classList.add('girando');
+  setTimeout(() => location.reload(), 350);
+});
+
 // Al volver a abrir la app, trae lo más nuevo de la nube y actualiza la racha.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
