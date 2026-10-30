@@ -1761,13 +1761,16 @@ function abrirFormulario(prellenado = {}) {
   formulario.monto = prellenado.monto ? String(prellenado.monto) : '0';
   formulario.categoria = prellenado.meta || prellenado.categoria || null;
   formulario.verTodas = false;
-  if (prellenado.categoria && form.tipo.value !== 'ahorro' && !categoriasDe(form.tipo.value).includes(prellenado.categoria)) {
+  const propuesta = prellenado.categoria === NUEVA_CATEGORIA;
+  if (prellenado.categoria && !propuesta && form.tipo.value !== 'ahorro' && !categoriasDe(form.tipo.value).includes(prellenado.categoria)) {
     formulario.categoria = 'Otros';
   }
   pintarMonto();
   $('#chips-categoria').scrollLeft = 0;
   abrirHoja($('#hoja-movimiento'));
   pintarCategorias(); // después de abrir, para que las flechas midan bien
+  // Categoría nueva propuesta al anotar escribiendo: ya viene escrita en la cajita de "Nueva".
+  if (propuesta) $('#nueva-categoria').value = prellenado.nuevaCategoria || '';
 }
 
 for (const radio of $('#form').querySelectorAll('input[name="tipo"]')) {
@@ -2214,45 +2217,142 @@ function mostrarIA() {
 
 // Palabras que dicen qué tipo de movimiento es (se buscan sin acentos). Si no hay ninguna, es gasto.
 const PALABRAS_TIPO = {
-  ingreso: ['me pagaron', 'me pago', 'me depositaron', 'me deposito', 'me dieron', 'me regalaron', 'me transfirieron', 'cobre', 'gane', 'vendi', 'recibi', 'ingreso', 'sueldo', 'quincena', 'nomina', 'venta de', 'ventas'],
-  ahorro: ['ahorre', 'ahorrar', 'aparte', 'apartar', 'guarde', 'ahorro', 'meti a', 'para la meta', 'para mi meta'],
+  ingreso: [
+    'me pagaron', 'me pago', 'me depositaron', 'me deposito', 'me dieron', 'me dio', 'me regalaron', 'me regalo',
+    'me transfirieron', 'me transfirio', 'me mandaron', 'me mando', 'me prestaron', 'me presto', 'me devolvieron',
+    'me devolvio', 'me cayo', 'me cayeron', 'me llego', 'me llegaron', 'me encontre', 'me gane', 'cobre', 'cobramos',
+    'gane', 'ganamos', 'vendi', 'vendimos', 'recibi', 'recibimos', 'ingreso', 'ingresaron', 'entraron', 'entro',
+    'sueldo', 'quincena', 'nomina', 'salario', 'aguinaldo', 'bono', 'propina', 'propinas', 'domingo de', 'mesada',
+    'venta de', 'ventas', 'utilidad', 'ganancia', 'reembolso', 'cashback', 'beca',
+  ],
+  ahorro: ['ahorre', 'ahorrar', 'ahorramos', 'aparte', 'apartar', 'apartamos', 'guarde', 'guardar', 'ahorro', 'meti a', 'meti en', 'para la meta', 'para mi meta', 'al cochinito', 'alcancia', 'cochinito'],
 };
 
-// Palabras que dicen la categoría. Las categorías que tú creaste también se reconocen por su nombre.
+// Palabras que dicen la categoría (en singular; los plurales se reconocen solos).
+// Las categorías que tú creaste también se reconocen por su nombre.
 const PALABRAS_CATEGORIA = {
-  Comida: ['comida', 'taco', 'torta', 'pizza', 'hamburguesa', 'cafe', 'refresco', 'coca', 'almuerzo', 'desayuno', 'comi', 'cena', 'antojo', 'dulce', 'botana', 'helado', 'pan', 'sushi', 'pollo', 'elote', 'agua', 'snack', 'restaurante', 'oxxo'],
-  Transporte: ['uber', 'didi', 'taxi', 'camion', 'metro', 'gasolina', 'pasaje', 'transporte', 'combi', 'estacionamiento', 'caseta', 'bici', 'moto'],
-  Casa: ['renta', 'super', 'despensa', 'casa', 'limpieza', 'mueble', 'walmart', 'soriana', 'costco'],
-  Servicios: ['luz', 'internet', 'telefono', 'celular', 'recarga', 'plan', 'netflix', 'spotify', 'gas', 'servicio', 'suscripcion', 'icloud', 'youtube'],
-  Salud: ['farmacia', 'doctor', 'medicina', 'medicamento', 'dentista', 'consulta', 'hospital', 'pastilla', 'gym', 'gimnasio'],
-  'Diversión': ['cine', 'fiesta', 'juego', 'videojuego', 'salida', 'concierto', 'bar', 'antro', 'boliche', 'feria', 'peli', 'pelicula', 'fortnite', 'robux', 'steam'],
-  Ropa: ['ropa', 'tenis', 'zapato', 'playera', 'pantalon', 'sudadera', 'gorra', 'camisa', 'chamarra', 'calcetin', 'shorts', 'vestido'],
-  Ventas: ['vendi', 'venta', 'cliente', 'chile', 'pedido'],
-  Sueldo: ['sueldo', 'quincena', 'nomina', 'me pagaron', 'trabajo', 'salario'],
-  Regalo: ['regalaron', 'regalo', 'me dieron'],
-  Negocio: ['negocio', 'abasto', 'mercancia', 'proveedor'],
+  Comida: [
+    'comida', 'comer', 'comi', 'comimos', 'taco', 'taquito', 'torta', 'tortilla', 'pizza', 'hamburguesa', 'hot dog', 'hotdog', 'burrito',
+    'quesadilla', 'gordita', 'tamal', 'tamale', 'pozole', 'menudo', 'birria', 'pastor', 'carnitas', 'barbacoa', 'elote', 'esquite',
+    'sushi', 'ramen', 'pollo', 'alitas', 'boneless', 'carne', 'asada', 'mariscos', 'coctel', 'ceviche', 'sopa', 'ensalada',
+    'pan', 'concha', 'dona', 'galleta', 'pastel', 'helado', 'nieve', 'paleta', 'dulce', 'chocolate', 'chicle', 'papas', 'sabritas',
+    'botana', 'snack', 'antojo', 'antojito', 'fruta', 'licuado', 'jugo', 'smoothie', 'cafe', 'starbucks', 'frappe', 'malteada',
+    'refresco', 'coca', 'pepsi', 'agua', 'cerveza', 'chela', 'bebida', 'almuerzo', 'desayuno', 'comida corrida', 'cena', 'lonche',
+    'restaurante', 'fonda', 'cocina', 'cafeteria', 'oxxo', 'seven', '7 eleven', 'mcdonalds', 'burger king', 'kfc', 'dominos',
+    'little caesars', 'subway', 'vips', 'sanborns', 'rappi', 'didi food', 'uber eats', 'mandado', 'tianguis', 'mercado', 'leche', 'huevo',
+  ],
+  Transporte: [
+    'uber', 'didi', 'indriver', 'cabify', 'taxi', 'camion', 'camioncito', 'micro', 'pesero', 'combi', 'metro', 'metrobus', 'tren', 'tren ligero',
+    'pasaje', 'transporte', 'gasolina', 'gas del carro', 'diesel', 'magna', 'premium', 'estacionamiento', 'parking', 'caseta', 'peaje',
+    'autobus', 'ado', 'boleto de autobus', 'avion', 'vuelo', 'bici', 'scooter', 'moto', 'llanta', 'mecanico', 'taller', 'servicio del carro',
+    'verificacion', 'tenencia', 'refrendo', 'lavado de carro', 'autolavado', 'tarjeta del metro', 'recarga del metro', 'mi movilidad',
+  ],
+  Casa: [
+    'renta', 'hipoteca', 'super', 'supermercado', 'despensa', 'casa', 'hogar', 'limpieza', 'detergente', 'jabon', 'cloro', 'papel', 'escoba',
+    'mueble', 'cama', 'colchon', 'silla', 'mesa', 'decoracion', 'foco', 'herramienta', 'ferreteria', 'plomero', 'electricista', 'reparacion',
+    'walmart', 'soriana', 'costco', 'sams', 'chedraui', 'heb', 'bodega aurrera', 'aurrera', 'la comer', 'home depot', 'liverpool', 'coppel',
+    'mascota', 'perro', 'gato', 'croquetas', 'veterinario', 'vecino',
+  ],
+  Servicios: [
+    'luz', 'cfe', 'agua potable', 'recibo', 'internet', 'telmex', 'totalplay', 'izzi', 'megacable', 'telefono', 'celular', 'recarga', 'saldo',
+    'plan', 'telcel', 'att', 'movistar', 'bait', 'netflix', 'spotify', 'disney', 'hbo', 'max', 'prime', 'amazon prime', 'apple music',
+    'youtube', 'youtube premium', 'icloud', 'google one', 'chatgpt', 'xbox game pass', 'playstation plus', 'crunchyroll', 'vix', 'star',
+    'gas', 'tanque de gas', 'pipa', 'servicio', 'suscripcion', 'mensualidad', 'predial', 'banco', 'comision', 'seguro',
+  ],
+  Salud: [
+    'farmacia', 'similares', 'del ahorro', 'benavides', 'guadalajara', 'doctor', 'doctora', 'medico', 'medicina', 'medicamento', 'pastilla',
+    'jarabe', 'vitamina', 'dentista', 'ortodoncia', 'brackets', 'consulta', 'hospital', 'clinica', 'laboratorio', 'analisis', 'estudio',
+    'lentes', 'optica', 'psicologo', 'terapia', 'gym', 'gimnasio', 'smart fit', 'proteina', 'suplemento', 'curita', 'vacuna',
+  ],
+  'Diversión': [
+    'cine', 'cinepolis', 'cinemex', 'palomitas', 'fiesta', 'peda', 'juego', 'videojuego', 'salida', 'concierto', 'boleto', 'ticketmaster',
+    'bar', 'antro', 'boliche', 'billar', 'parque', 'museo', 'peli', 'pelicula', 'serie', 'fortnite', 'robux', 'roblox', 'steam',
+    'playstation', 'xbox', 'nintendo', 'switch', 'skin', 'pase de batalla', 'gemas', 'paseo', 'viaje', 'hotel', 'airbnb', 'playa',
+    'karaoke', 'futbol', 'partido', 'estadio', 'lucha libre', 'apuesta', 'cumple', 'cumpleanos', 'regalo para', 'novia', 'novio',
+  ],
+  Ropa: [
+    'ropa', 'tenis', 'zapato', 'zapatilla', 'bota', 'sandalia', 'chancla', 'playera', 'camiseta', 'pantalon', 'jeans', 'sudadera', 'gorra',
+    'camisa', 'chamarra', 'chaqueta', 'calcetin', 'calzon', 'boxer', 'shorts', 'short', 'vestido', 'falda', 'uniforme', 'cinturon',
+    'mochila', 'bolsa', 'cartera', 'reloj', 'lentes de sol', 'accesorio', 'arete', 'collar', 'perfume', 'loción', 'locion', 'corte de pelo',
+    'peluqueria', 'barberia', 'barbero', 'shein', 'zara', 'pull and bear', 'bershka', 'nike', 'adidas', 'puma', 'vans', 'converse', 'h&m',
+  ],
+  Ventas: ['vendi', 'vendimos', 'venta', 'cliente', 'chile', 'pedido', 'encargo', 'cobre a', 'me compro', 'me compraron', 'mercancia vendida'],
+  Sueldo: ['sueldo', 'quincena', 'nomina', 'me pagaron', 'trabajo', 'chamba', 'salario', 'propina', 'aguinaldo', 'bono', 'pago semanal', 'semana', 'turno', 'horas extra'],
+  Regalo: ['regalaron', 'regalo', 'me dieron', 'domingo de', 'mesada', 'mi abuela', 'mi abuelo', 'mi mama', 'mi papa', 'mis papas', 'mi tia', 'mi tio', 'padrino', 'madrina'],
+  Negocio: ['negocio', 'abasto', 'central de abasto', 'mercancia', 'proveedor', 'flete', 'costal', 'bulto', 'inventario', 'local', 'puesto', 'utilidad', 'ganancia'],
 };
 
 // Palabras que se quitan para que la nota quede limpia ("gasté 80 en tacos ayer" → "tacos").
-const PALABRAS_SOBRAN = new Set('fui fuimos fue nos le les se gastamos pagamos compramos gaste gasto pague pago compre compro me pagaron depositaron deposito dieron regalaron transfirieron cobre gane vendi recibi ahorre ahorrar aparte apartar guarde meti en de del la el los las un una unos unas para por con a al y mi mis que hoy ayer antier anteayer pesos peso mxn varo varos lana mil lunes martes miercoles jueves viernes sabado domingo pasado este esta ese'.split(' '));
+const PALABRAS_SOBRAN = new Set('fui fuimos fue nos le les se lo la los las gastamos pagamos compramos gaste gasto gastaron pague pago pagaron compre compro compraron me pagaron depositaron deposito dieron dio regalaron regalo transfirieron transfirio mandaron mando prestaron presto devolvieron devolvio cayo cayeron llego llegaron cobre gane vendi vendimos recibi ahorre ahorrar aparte apartar guarde meti en de del el un una uno unos unas para por con a al y o mi mis tu su que hoy ayer antier anteayer pesos peso mxn varo varos lana baro baros feria mil lunes martes miercoles jueves viernes sabado domingo pasado este esta ese esa como mas menos casi aprox aproximadamente unos ya'.split(' '));
 
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
+// Números escritos con letra (así los manda a veces el dictado): "doscientos cincuenta", "mil quinientos".
+const NUMEROS = {
+  un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
+  once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19,
+  veinte: 20, veintiuno: 21, veintiun: 21, veintidos: 22, veintitres: 23, veinticuatro: 24, veinticinco: 25, veintiseis: 26,
+  veintisiete: 27, veintiocho: 28, veintinueve: 29, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70,
+  ochenta: 80, noventa: 90, cien: 100, ciento: 100, doscientos: 200, doscientas: 200, trescientos: 300, cuatrocientos: 400,
+  quinientos: 500, seiscientos: 600, setecientos: 700, ochocientos: 800, novecientos: 900,
+};
+
+function numeroEnLetra(palabras) {
+  let total = 0;
+  let parte = 0;
+  let enNumero = false;
+  let soloArticulo = true; // "un taco" no es un monto; "un mil" o "dos" sí
+  for (const p of palabras) {
+    if (p in NUMEROS || p === 'mil' || (enNumero && p === 'y')) {
+      enNumero = true;
+      if (p === 'mil') {
+        total += (parte || 1) * 1000;
+        parte = 0;
+        soloArticulo = false;
+      } else if (p !== 'y') {
+        parte += NUMEROS[p];
+        if (!['un', 'uno', 'una'].includes(p)) soloArticulo = false;
+      }
+    } else if (enNumero) {
+      break;
+    }
+  }
+  return soloArticulo ? 0 : total + parte;
+}
+
+// Lo que Kashiki aprendió de ti: qué palabra de tus notas fue a qué categoría ("chiles" → Ventas).
+function categoriaAprendida(palabras, tipo, validas) {
+  const votos = {};
+  for (const m of deSeccion('movimientos')) {
+    if (m.tipo !== tipo || m.categoria === 'Otros' || !validas.includes(m.categoria) || !m.nota) continue;
+    const enNota = new Set(sinAcentos(m.nota).split(/[^a-z0-9ñ]+/).filter((p) => p.length >= 3 && !PALABRAS_SOBRAN.has(p)));
+    for (const p of palabras) {
+      const singular = p.replace(/(es|s)$/, '');
+      if (enNota.has(p) || enNota.has(singular) || enNota.has(singular + 's')) votos[m.categoria] = (votos[m.categoria] || 0) + 1;
+    }
+  }
+  return Object.entries(votos).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
 
 function interpretarTexto(original) {
   const base = sinAcentos(original);
   // Para buscar palabras se quitan los signos (pero el monto se busca en "base", con sus comas y puntos).
   const texto = ' ' + base.replace(/[¿?¡!,;]|\.(?!\d)/g, ' ').replace(/\s+/g, ' ') + ' ';
+  const palabras = texto.trim().split(' ');
   // Palabra completa (o su plural): "taco" encuentra "tacos", pero "pan" no encuentra "pantalón".
   const tiene = (palabra) => new RegExp(`\\s${palabra.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(s|es)?\\s`).test(texto);
 
-  // 1. El monto: el primer número ("80", "$1,250.50", "1.5 mil", "2 mil", "mil").
+  // 1. El monto: el primer número ("80", "$1,250.50", "2 mil", "2k", "mil") o con letra ("doscientos").
   let monto = 0;
+  const conK = base.match(/(\d+(?:[.,]\d+)?)\s?k\b/);
   const numero = base.match(/\$?\s?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(\s*mil\b)?/);
-  if (numero) {
+  if (conK) {
+    monto = Number(conK[1].replace(',', '.')) * 1000;
+  } else if (numero) {
     monto = Number(numero[1].replace(/,(?=\d{3}\b)/g, '').replace(',', '.'));
     if (numero[2]) monto *= 1000;
-  } else if (/\bmil\b/.test(texto)) {
-    monto = 1000;
+  } else {
+    monto = numeroEnLetra(palabras);
   }
   monto = Math.round(monto * 100) / 100;
 
@@ -2261,19 +2361,37 @@ function interpretarTexto(original) {
   if (PALABRAS_TIPO.ahorro.some(tiene)) tipo = 'ahorro';
   else if (PALABRAS_TIPO.ingreso.some(tiene)) tipo = 'ingreso';
 
-  // 3. La categoría (para ahorros, la meta que se mencione o la primera).
+  // 3. La categoría. En este orden: el nombre de una de tus categorías, lo que aprendió de ti,
+  //    su lista de palabras y, si no conoce nada, te propone una categoría nueva.
   let categoria = null;
+  let nuevaCategoria = '';
   if (tipo === 'ahorro') {
     const metas = deSeccion('metas');
     categoria = (metas.find((meta) => texto.includes(sinAcentos(meta.nombre))) || metas[0])?.id ?? null;
   } else {
     const validas = categoriasDe(tipo);
-    // Primero tus categorías por su nombre exacto, luego las palabras de la lista.
-    categoria = validas.find((c) => c !== 'Otros' && tiene(sinAcentos(c)));
+    categoria =
+      validas.find((c) => c !== 'Otros' && tiene(sinAcentos(c))) ||
+      categoriaAprendida(palabras, tipo, validas) ||
+      Object.entries(PALABRAS_CATEGORIA).find(([c, lista]) => validas.includes(c) && lista.some(tiene))?.[0] ||
+      null;
     if (!categoria) {
-      categoria = Object.entries(PALABRAS_CATEGORIA).find(([c, palabras]) => validas.includes(c) && palabras.some(tiene))?.[0];
+      // La primera palabra "de verdad" que no sea un nombre de persona (las que empiezan con mayúscula
+      // a media frase, como "Don Pepe") ni un número.
+      const candidata = original
+        .split(/\s+/)
+        .find((p, i) => {
+          const limpia = sinAcentos(p).replace(/[^a-z0-9ñ]/g, '');
+          const esNombre = i > 0 && /^[A-ZÁÉÍÓÚÑ]/.test(p);
+          return limpia.length >= 3 && !/\d/.test(limpia) && !PALABRAS_SOBRAN.has(limpia) && !(limpia in NUMEROS) && !esNombre;
+        });
+      if (candidata) {
+        categoria = NUEVA_CATEGORIA;
+        nuevaCategoria = mayuscula(candidata.replace(/[^\p{L}\p{N} ]/gu, '').toLowerCase());
+      } else {
+        categoria = 'Otros';
+      }
     }
-    categoria = categoria || 'Otros';
   }
 
   // 4. La fecha: hoy, ayer, antier o un día de la semana ("el lunes" = el lunes pasado más cercano).
@@ -2281,7 +2399,9 @@ function interpretarTexto(original) {
   if (tiene('antier') || tiene('anteayer')) fecha = sumarDias(hoy(), -2);
   else if (tiene('ayer')) fecha = sumarDias(hoy(), -1);
   else {
-    const dia = DIAS_SEMANA.findIndex((d) => tiene(d));
+    // "mi domingo" o "el domingo de mi abuela" es dinero que te dan, no un día.
+    const esDomingoDeDinero = tiene('mi domingo') || tiene('domingo de');
+    const dia = DIAS_SEMANA.findIndex((d) => tiene(d) && !(d === 'domingo' && esDomingoDeDinero));
     if (dia >= 0) {
       const atras = (new Date().getDay() - dia + 7) % 7;
       fecha = sumarDias(hoy(), -atras);
@@ -2291,12 +2411,13 @@ function interpretarTexto(original) {
   // 5. La nota: lo que queda sin números ni palabras de relleno ("tacos con Fran").
   const palabrasOriginales = original.replace(/[¿?¡!,;]/g, ' ').split(/\s+/).filter(Boolean);
   const nota = palabrasOriginales
-    .filter((p) => !/\d/.test(p) && !/^\$/.test(p) && !PALABRAS_SOBRAN.has(sinAcentos(p)))
+    .filter((p) => !/\d/.test(p) && !/^\$/.test(p) && !PALABRAS_SOBRAN.has(sinAcentos(p)) && !(sinAcentos(p) in NUMEROS))
     .join(' ')
     .trim();
-  const notaFinal = sinAcentos(nota) === sinAcentos(String(categoria)) ? '' : nota;
+  const nombreCategoria = nuevaCategoria || String(categoria);
+  const notaFinal = sinAcentos(nota) === sinAcentos(nombreCategoria) ? '' : nota;
 
-  return { tipo, monto, categoria, fecha, nota: notaFinal.slice(0, 80) };
+  return { tipo, monto, categoria, nuevaCategoria, fecha, nota: notaFinal.slice(0, 80) };
 }
 
 $('#form-ia').addEventListener('submit', (evento) => {
@@ -2309,7 +2430,8 @@ $('#form-ia').addEventListener('submit', (evento) => {
   campo.blur();
   // Para ahorros, la "categoría" es la meta.
   abrirFormulario(entendido.tipo === 'ahorro' ? { ...entendido, meta: entendido.categoria, categoria: null } : entendido);
-  if (!entendido.monto) avisar('No encontré cuánto fue: escríbelo con los números.');
+  if (!entendido.monto) avisar('No encontré cuánto fue: escríbelo con los números de abajo.');
+  else if (entendido.nuevaCategoria) avisar(`No conocía esa palabra: te propongo la categoría nueva "${entendido.nuevaCategoria}". Si no te late, elige otra.`);
 });
 
 // ---------- Cuenta: iniciar sesión, crear cuenta, cerrar sesión ----------
