@@ -771,28 +771,49 @@ function totalesEntre(desde, hasta) {
   return { ingresos, gastos, quedo: ingresos - gastos, cuantos: lista.length };
 }
 
-function compararMes(mes) {
+// "alturas" = contra el mismo día del mes pasado; "completo" = contra todo el mes pasado
+// (por ejemplo, para ver si a medio mes ya ganaste más que en todo el mes anterior).
+let modoComparacion = leer('mi-dinero:comparar', 'alturas');
+
+function compararMes(mes, modo) {
   const [a, m] = mes.split('-').map(Number);
   const hoyTexto = hoy();
   const esEsteMes = hoyTexto.startsWith(mes);
+  const aEstasAlturas = esEsteMes && modo === 'alturas';
   const diasAntes = new Date(a, m - 1, 0).getDate(); // cuántos días tuvo el mes pasado
-  const dia = esEsteMes ? Number(hoyTexto.slice(8)) : new Date(a, m, 0).getDate();
+  const dia = Number(hoyTexto.slice(8));
   const anterior = fechaLocal(new Date(a, m - 2, 1)).slice(0, 7);
   return {
     actual: totalesEntre(`${mes}-01`, esEsteMes ? hoyTexto : `${mes}-31`),
-    pasado: totalesEntre(`${anterior}-01`, `${anterior}-${String(esEsteMes ? Math.min(dia, diasAntes) : 31).padStart(2, '0')}`),
+    pasado: totalesEntre(`${anterior}-01`, `${anterior}-${String(aEstasAlturas ? Math.min(dia, diasAntes) : 31).padStart(2, '0')}`),
     nombrePasado: new Date(a, m - 2, 1).toLocaleDateString('es-MX', { month: 'long' }),
-    aEstasAlturas: esEsteMes,
+    aEstasAlturas,
+    esEsteMes,
   };
 }
 
+for (const boton of document.querySelectorAll('[data-comparar]')) {
+  boton.addEventListener('click', () => {
+    modoComparacion = boton.dataset.comparar;
+    escribir('mi-dinero:comparar', modoComparacion);
+    dibujarComparacionMes();
+  });
+}
+
 function dibujarComparacionMes() {
-  const { actual, pasado, nombrePasado, aEstasAlturas } = compararMes($('#mes').value);
+  const { actual, pasado, nombrePasado, aEstasAlturas, esEsteMes } = compararMes($('#mes').value, modoComparacion);
   const tarjeta = $('#comparacion-mes');
   // Sin nada registrado el mes pasado no hay con qué comparar.
   tarjeta.hidden = pasado.cuantos === 0;
   if (tarjeta.hidden) return;
-  $('#comparacion-titulo').textContent = `Contra ${nombrePasado}${aEstasAlturas ? ' a estas alturas' : ''}`;
+  // El selector solo tiene sentido en el mes que va corriendo; un mes que ya pasó se compara completo.
+  $('#comparacion-modo').hidden = !esEsteMes;
+  document.querySelectorAll('[data-comparar]').forEach((b) => b.classList.toggle('activo', b.dataset.comparar === modoComparacion));
+  $('#comparacion-titulo').textContent = esEsteMes
+    ? aEstasAlturas
+      ? `Contra ${nombrePasado} a estas alturas`
+      : `Lo que llevas contra todo ${nombrePasado}`
+    : `Contra ${nombrePasado}`;
 
   // "subirEsBueno": ganar más o que te quede más es bueno; gastar más, no.
   const filas = [
@@ -817,12 +838,21 @@ function dibujarComparacionMes() {
   }
   // Una frase que resume cómo vas.
   const mejor = actual.quedo - pasado.quedo;
-  $('#comparacion-frase').textContent =
-    Math.abs(mejor) < 0.005
-      ? 'Vas igual que el mes pasado.'
-      : mejor > 0
+  let frase;
+  if (Math.abs(mejor) < 0.005) frase = 'Vas igual que el mes pasado.';
+  else if (esEsteMes && !aEstasAlturas) {
+    // Mes completo: ¿ya alcanzaste lo de todo el mes pasado?
+    frase =
+      mejor > 0
+        ? `¡Ya te queda más que en todo ${nombrePasado}! Vas ${dinero.format(mejor)} arriba y aún no acaba el mes.`
+        : `Te faltan ${dinero.format(-mejor)} para alcanzar lo que te quedó en todo ${nombrePasado}.`;
+  } else {
+    frase =
+      mejor > 0
         ? `¡Vas mejor! Te quedan ${dinero.format(mejor)} más que en ${nombrePasado}.`
         : `Vas ${dinero.format(-mejor)} abajo de ${nombrePasado}. Todavía puedes recuperarte.`;
+  }
+  $('#comparacion-frase').textContent = frase;
 }
 
 // ---------- Detalle: ingresos, gastos o todos ----------

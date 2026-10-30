@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=37">
+  <link rel="stylesheet" href="styles.css?v=38">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -114,6 +114,11 @@
       <div id="comparacion-mes" class="tarjeta comparacion-mes" hidden>
         <div class="titulo-seccion">
           <h2><i class="ti ti-arrows-diff" aria-hidden="true"></i> <span id="comparacion-titulo">Contra el mes pasado</span></h2>
+        </div>
+        <!-- Solo en el mes actual: comparar contra el mismo día del mes pasado, o contra todo el mes pasado -->
+        <div id="comparacion-modo" class="segmentos chico" role="group" aria-label="Con qué comparar">
+          <button type="button" data-comparar="alturas" class="activo">A estas alturas</button>
+          <button type="button" data-comparar="completo">Mes completo</button>
         </div>
         <ul id="comparacion-filas" class="comparacion-filas"></ul>
         <p id="comparacion-frase" class="suave pequeno"></p>
@@ -596,6 +601,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=37"></script>
+  <script src="app.js?v=38"></script>
 </body>
 </html>

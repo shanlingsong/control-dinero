@@ -173,11 +173,12 @@ async function atenderTelegram(update: any) {
     return;
   }
   const hoy = fechaDe(Date.now());
-  await enviar(chatId, responder(await leerDatos(dueno.user_id), hoy));
+  // "codigo" es la segunda palabra del mensaje, por ejemplo "completo" en "/comparar completo".
+  await enviar(chatId, responder(await leerDatos(dueno.user_id), hoy, codigo));
 }
 
 // Lo que le puedes pedir al bot cuando quieras. Telegram los muestra en el menú al escribir "/".
-const COMANDOS: Record<string, (datos: Datos, hoy: string) => string> = {
+const COMANDOS: Record<string, (datos: Datos, hoy: string, extra?: string) => string> = {
   '/resumen': (datos, hoy) => resumen(datos, hoy, sumarDias(hoy, -6), 'Tus últimos 7 días'),
   '/mes': (datos, hoy) => resumen(datos, hoy, hoy.slice(0, 8) + '01', 'Tu mes hasta hoy'),
   '/pagos': pagos,
@@ -612,11 +613,13 @@ function pagos(datos: Datos, hoy: string) {
   return partes.join('\n\n');
 }
 // /comparar: este mes contra el mes pasado "a estas alturas" (del 1 al mismo día), por sección.
-function comparar(datos: Datos, hoy: string) {
+// /comparar completo: lo que llevas este mes contra TODO el mes pasado.
+function comparar(datos: Datos, hoy: string, extra = '') {
+  const completo = /complet|todo|entero/i.test(extra);
   const [a, m, d] = hoy.split('-').map(Number);
   const pasado = new Date(Date.UTC(a, m - 2, 1)).toISOString().slice(0, 7);
   const diasPasado = new Date(Date.UTC(a, m - 1, 0)).getUTCDate();
-  const finPasado = `${pasado}-${String(Math.min(d, diasPasado)).padStart(2, '0')}`;
+  const finPasado = `${pasado}-${String(completo ? diasPasado : Math.min(d, diasPasado)).padStart(2, '0')}`;
   const nombrePasado = MESES_LARGOS[(m + 10) % 12];
   const totales = (lista: Movimiento[], desde: string, hasta: string) => {
     const periodo = lista.filter((x) => x.fecha >= desde && x.fecha <= hasta);
@@ -633,7 +636,9 @@ function comparar(datos: Datos, hoy: string) {
   };
 
   const grupos = porSeccion(datos);
-  const lineas = [`📊 <b>Este mes contra ${nombrePasado}</b>`, `del 1 al ${d} de cada mes`];
+  const lineas = completo
+    ? [`📊 <b>Lo que llevas contra todo ${nombrePasado}</b>`, `del 1 al ${d} de este mes contra los ${diasPasado} días de ${nombrePasado}`]
+    : [`📊 <b>Este mes contra ${nombrePasado}</b>`, `del 1 al ${d} de cada mes`];
   for (const g of grupos) {
     const ahora = totales(g.movimientos, hoy.slice(0, 8) + '01', hoy);
     const antes = totales(g.movimientos, `${pasado}-01`, finPasado);
@@ -646,6 +651,7 @@ function comparar(datos: Datos, hoy: string) {
     );
   }
   if (grupos.length === 0) lineas.push('', 'Todavía no tienes movimientos para comparar.');
+  lineas.push('', completo ? 'Escribe /comparar para verlo a estas alturas.' : `Escribe <b>/comparar completo</b> para compararlo contra todo ${nombrePasado}.`);
   lineas.push('', URL_APP);
   return lineas.join('\n');
 }
