@@ -787,3 +787,106 @@ a.boton-secundario { text-decoration: none; }
 .aviso .boton-texto { color: var(--acento); }
 
 code { font-size: 0.8em; background: var(--fondo); padding: 1px 5px; border-radius: 5px; }
+
+/* ---------- Partes que solo existen en la compu ---------- */
+.columna { display: contents; } /* en el teléfono es como si no existiera */
+.marca-lateral, .barra-secciones .agregar-lateral { display: none; }
+
+/* ==========================================================
+   Versión para computadora (pantallas anchas)
+   El menú pasa a la izquierda, el contenido se acomoda en
+   columnas y las ventanas salen en medio en vez de abajo.
+   ========================================================== */
+@media (min-width: 900px) {
+  body { padding-left: 240px; padding-bottom: 32px; }
+
+  .encabezado { max-width: 1120px; padding: 22px 32px 14px; }
+  main { max-width: 1120px; padding: 4px 32px 32px; }
+
+  /* Menú lateral */
+  .barra-secciones {
+    top: 0;
+    right: auto;
+    width: 240px;
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 22px 14px;
+    background: var(--tarjeta);
+    backdrop-filter: none;
+    border-top: none;
+    border-right: 1px solid var(--linea);
+  }
+  .barra-secciones [data-vista] {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    transition: background .2s, color .2s;
+  }
+  .barra-secciones [data-vista]:hover { background: var(--tarjeta-2); color: var(--texto); }
+  .barra-secciones [data-vista][aria-current="page"] { background: rgb(255 90 78 / 0.12); }
+  .barra-secciones .ti { font-size: 1.3rem; }
+  .barra-secciones [data-vista][aria-current="page"] .ti { transform: none; }
+  .punto { position: static; margin-left: auto; }
+
+  .marca-lateral { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
+  .marca-lateral img { width: 38px; height: 38px; object-fit: contain; }
+  .marca-lateral span { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+  .marca-lateral b { color: var(--acento); font-weight: 700; }
+
+  .barra-secciones .agregar-lateral {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    order: 99; /* hasta abajo del menú, después de las secciones */
+    margin-top: 14px;
+    padding: 12px;
+    border: none;
+    border-radius: 14px;
+    background: var(--acento);
+    color: var(--fondo);
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgb(255 90 78 / 0.25);
+    transition: transform .15s;
+  }
+  .agregar-lateral:hover { transform: translateY(-1px); }
+  .agregar-lateral .ti { font-size: 1.2rem; }
+
+  /* En la compu el botón flotante sobra: está "Agregar movimiento" en el menú */
+  .flotante, .flotante[hidden] { display: none; }
+
+  /* Contenido en dos columnas */
+  #vista-dinero, #vista-detalle, #vista-racha, #vista-pagos {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: 28px;
+  }
+  .columna { display: grid; gap: 16px; align-content: start; }
+  .detalle-arriba,
+  #vista-racha > .etapas, #vista-racha > p,
+  #vista-pagos > .dos-columnas, #vista-pagos > .boton-grande { grid-column: 1 / -1; }
+  #vista-pagos > .boton-grande { justify-self: start; width: auto; padding-left: 28px; padding-right: 28px; }
+  .metas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #vista-metas > .boton-grande { justify-self: start; width: auto; padding-left: 28px; padding-right: 28px; }
+
+  /* Ventanas en medio de la pantalla */
+  .hoja {
+    margin: auto;
+    max-width: 520px;
+    max-height: 86vh;
+    border-bottom: 1px solid var(--linea);
+    border-radius: 22px;
+  }
+  .hoja[open] { animation: centro-entra .25s var(--suavecito); }
+  .hoja.cerrando { animation: centro-sale .18s ease-in forwards; }
+  .hoja form { padding-bottom: 20px; }
+  .agarradera { display: none; }
+}
+@keyframes centro-entra { from { opacity: 0; transform: scale(.95) translateY(10px); } }
+@keyframes centro-sale { to { opacity: 0; transform: scale(.96); } }

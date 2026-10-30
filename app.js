@@ -1182,6 +1182,7 @@ $('#teclado').append(
     const boton = document.createElement('button');
     boton.type = 'button';
     boton.className = 'tecla';
+    boton.dataset.tecla = tecla;
     if (tecla === 'borrar') {
       boton.innerHTML = '<i class="ti ti-backspace" aria-hidden="true"></i>';
       boton.setAttribute('aria-label', 'Borrar');
@@ -1200,6 +1201,22 @@ $('#teclado').append(
     return boton;
   })
 );
+
+// En la compu: el monto también se escribe con el teclado de verdad (números, punto, borrar y Enter).
+document.addEventListener('keydown', (e) => {
+  if (!$('#hoja-movimiento').open || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.matches('input:not([type=radio]), textarea, select')) return; // escribiendo la nota o la fecha
+  const tecla = e.key === 'Backspace' ? 'borrar' : e.key === ',' ? '.' : e.key;
+  if (tecla === 'Enter') {
+    e.preventDefault();
+    $('#form').requestSubmit();
+    return;
+  }
+  const boton = $(`#teclado [data-tecla="${CSS.escape(tecla)}"]`);
+  if (!boton) return;
+  e.preventDefault();
+  boton.click();
+});
 
 function temblarMonto() {
   const pantalla = $('#monto-pantalla');
@@ -1309,7 +1326,7 @@ function mostrarVista(nombre) {
   }
   // El detalle es parte de la sección Dinero.
   const seccion = nombre === 'detalle' ? 'dinero' : nombre;
-  for (const boton of document.querySelectorAll('.barra-secciones button')) {
+  for (const boton of document.querySelectorAll('.barra-secciones [data-vista]')) {
     if (boton.dataset.vista === seccion) boton.setAttribute('aria-current', 'page');
     else boton.removeAttribute('aria-current');
   }
@@ -1333,7 +1350,7 @@ function mostrarVista(nombre) {
   escribir('mi-dinero:vista', nombre);
 }
 
-for (const boton of document.querySelectorAll('.barra-secciones button')) {
+for (const boton of document.querySelectorAll('.barra-secciones [data-vista]')) {
   boton.addEventListener('click', () => mostrarVista(boton.dataset.vista));
 }
 $('#pastilla-racha').addEventListener('click', () => mostrarVista('racha'));

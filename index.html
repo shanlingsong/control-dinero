@@ -49,6 +49,8 @@
 
     <!-- ========== Sección: Dinero ========== -->
     <section id="vista-dinero" class="vista">
+      <!-- En el teléfono las columnas no se notan; en la compu se ponen lado a lado -->
+      <div class="columna">
       <div class="saldo-bloque">
         <span id="saldo-etiqueta" class="suave">Tu dinero</span>
         <strong id="saldo" class="saldo">$0.00</strong>
@@ -81,7 +83,9 @@
           <button type="button" class="chip" data-rango="90">3M</button>
         </div>
       </div>
+      </div>
 
+      <div class="columna">
       <div class="titulo-seccion">
         <h2>Movimientos</h2>
         <input type="month" id="mes" class="selector-mes" aria-label="Mes a mostrar">
@@ -105,6 +109,7 @@
       <ul id="lista" class="lista"></ul>
       <button type="button" id="ver-todos" class="boton-secundario ver-todos" data-detalle="todos">Ver todos <i class="ti ti-chevron-right" aria-hidden="true"></i></button>
       <p class="pista-deslizar suave pequeno"><i class="ti ti-hand-finger-left" aria-hidden="true"></i> Desliza un movimiento a la izquierda para borrarlo</p>
+      </div>
     </section>
 
     <!-- ========== Detalle: ingresos, gastos o todos los movimientos del mes ========== -->
@@ -117,6 +122,7 @@
         </div>
       </div>
 
+      <div class="columna">
       <div class="tarjeta detalle-total">
         <span id="detalle-etiqueta" class="suave">Total</span>
         <strong id="detalle-total">$0.00</strong>
@@ -127,7 +133,9 @@
         <h2>¿En qué gasto más?</h2>
         <ul id="categorias" class="categorias"></ul>
       </div>
+      </div>
 
+      <div class="columna">
       <div class="titulo-seccion">
         <h2 id="detalle-lista-titulo">Todos</h2>
         <div class="segmentos chico" role="group" aria-label="Ordenar">
@@ -136,6 +144,7 @@
         </div>
       </div>
       <ul id="detalle-lista" class="lista"></ul>
+      </div>
     </section>
 
     <!-- ========== Sección: Metas ========== -->
@@ -199,6 +208,9 @@
 
   <!-- Barra de secciones -->
   <nav class="barra-secciones" aria-label="Secciones">
+    <!-- Solo se ven en la compu, donde la barra se vuelve un menú a la izquierda -->
+    <div class="marca-lateral"><img src="marca/kashiki.png" alt=""><span>Kashi<b>ki</b></span></div>
+    <button type="button" class="agregar-lateral" data-abre="movimiento"><i class="ti ti-plus" aria-hidden="true"></i>Agregar movimiento</button>
     <button type="button" data-vista="dinero" aria-current="page"><i class="ti ti-wallet" aria-hidden="true"></i>Dinero</button>
     <button type="button" data-vista="metas"><i class="ti ti-target" aria-hidden="true"></i>Metas</button>
     <button type="button" data-vista="racha"><i class="ti ti-flame" aria-hidden="true"></i>Racha<b id="punto-racha" class="punto" hidden></b></button>
