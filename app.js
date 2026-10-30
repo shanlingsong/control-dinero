@@ -2372,11 +2372,23 @@ async function revisarNotificaciones() {
   const suscripcion = await registro.pushManager.getSubscription();
   if (suscripcion && Notification.permission === 'granted') {
     pintarNotificaciones('Notificaciones activadas en este teléfono', true);
-    // Por si cambió la dirección o se activaron antes de iniciar sesión: se vuelve a guardar.
+    // Por si cambió la dirección o no se alcanzó a guardar: se vuelve a guardar (por detrás, sin avisar).
     pedirAlBot('push-guardar', { suscripcion: suscripcion.toJSON() }).catch(() => {});
   } else {
     pintarNotificaciones('Recibe tus avisos como notificación en este teléfono', false);
   }
+}
+
+// Si algo tarda más de "ms", se deja de esperar (con mala señal o un iPhone lento podía tardar minutos).
+const conLimite = (promesa, ms, mensaje) =>
+  Promise.race([promesa, new Promise((_, rechazar) => setTimeout(() => rechazar(new Error(mensaje)), ms))]);
+
+// Guarda la dirección del teléfono en tu cuenta. Corre por detrás: si falla, se reintenta
+// la próxima vez que abras Ajustes (revisarNotificaciones la vuelve a guardar).
+function guardarSuscripcion(suscripcion) {
+  return pedirAlBot('push-guardar', { suscripcion: suscripcion.toJSON() }).catch(() => {
+    avisar('Las notificaciones quedaron activadas, pero no se pudieron guardar en tu cuenta. Se reintentará solo.');
+  });
 }
 
 $('#notif-activar').addEventListener('click', async () => {
@@ -2390,14 +2402,21 @@ $('#notif-activar').addEventListener('click', async () => {
       if (permiso === 'default') avisar('No se activaron. Puedes intentarlo otra vez cuando quieras.');
       return;
     }
-    const registro = await navigator.serviceWorker.ready;
+    $('#notif-estado').textContent = 'Activando…';
+    const registro = await conLimite(navigator.serviceWorker.ready, 8000, 'la app tardó en responder');
     const suscripcion =
       (await registro.pushManager.getSubscription()) ||
-      (await registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytesDeLlave(VAPID_PUBLICA) }));
-    await pedirAlBot('push-guardar', { suscripcion: suscripcion.toJSON() });
+      (await conLimite(
+        registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytesDeLlave(VAPID_PUBLICA) }),
+        20000,
+        'Apple tardó demasiado en contestar. Inténtalo otra vez'
+      ));
+    // Ya quedó activado en el teléfono: se avisa al instante y lo de la cuenta se guarda por detrás.
     pintarNotificaciones('Notificaciones activadas en este teléfono', true);
     avisar('Listo: te llegarán tus avisos aquí. Toca "Probar" para ver cómo se ven.');
+    guardarSuscripcion(suscripcion);
   } catch (error) {
+    await revisarNotificaciones().catch(() => {});
     avisar('No se pudieron activar: ' + traducirError(error));
   } finally {
     boton.disabled = false;
@@ -2405,11 +2424,20 @@ $('#notif-activar').addEventListener('click', async () => {
 });
 
 $('#notif-probar').addEventListener('click', async () => {
+  const boton = $('#notif-probar');
+  boton.disabled = true;
+  avisar('Mandando la prueba… sal de la app para verla llegar.');
   try {
-    const { enviados } = await pedirAlBot('push-probar');
+    // Primero se asegura de que este teléfono esté guardado en tu cuenta.
+    const registro = await navigator.serviceWorker.ready;
+    const suscripcion = await registro.pushManager.getSubscription();
+    if (suscripcion) await conLimite(pedirAlBot('push-guardar', { suscripcion: suscripcion.toJSON() }), 15000, 'la nube tardó demasiado');
+    const { enviados } = await conLimite(pedirAlBot('push-probar'), 15000, 'la nube tardó demasiado');
     if (!enviados) avisar('No se pudo mandar la prueba. Desactiva y vuelve a activar las notificaciones.');
   } catch (error) {
     avisar('No se pudo: ' + traducirError(error));
+  } finally {
+    boton.disabled = false;
   }
 });
 
