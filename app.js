@@ -749,6 +749,7 @@ function dibujarMes() {
   contar($('#total-gastos'), gastos, 700);
   $('#apartado-mes').textContent = apartado > 0 ? `Apartaste ${dinero.format(apartado)} para tus metas este mes` : '';
   $('#apartado-mes').hidden = apartado === 0;
+  dibujarComparacionMes();
 
   dibujarLista($('#lista'), delMes.slice(0, RECIENTES), 'Aún no hay movimientos este mes. Toca + para agregar el primero.');
   $('#ver-todos').hidden = delMes.length <= RECIENTES;
@@ -757,6 +758,71 @@ function dibujarMes() {
 
   if (!$('#vista-detalle').hidden) dibujarDetalle();
   if (!$('#vista-buscar').hidden) dibujarBusqueda();
+}
+
+// ---------- Comparación con el mes pasado ----------
+// Si ves el mes actual, se compara "a estas alturas": del 1 a hoy contra el 1 al mismo día del mes
+// pasado (si no, siempre parecería que este mes gastaste menos, porque aún no termina).
+
+function totalesEntre(desde, hasta) {
+  const lista = deSeccion('movimientos').filter((m) => m.fecha >= desde && m.fecha <= hasta);
+  const ingresos = sumar(lista.filter(esIngresoReal));
+  const gastos = sumar(lista.filter((m) => m.tipo === 'gasto'));
+  return { ingresos, gastos, quedo: ingresos - gastos, cuantos: lista.length };
+}
+
+function compararMes(mes) {
+  const [a, m] = mes.split('-').map(Number);
+  const hoyTexto = hoy();
+  const esEsteMes = hoyTexto.startsWith(mes);
+  const diasAntes = new Date(a, m - 1, 0).getDate(); // cuántos días tuvo el mes pasado
+  const dia = esEsteMes ? Number(hoyTexto.slice(8)) : new Date(a, m, 0).getDate();
+  const anterior = fechaLocal(new Date(a, m - 2, 1)).slice(0, 7);
+  return {
+    actual: totalesEntre(`${mes}-01`, esEsteMes ? hoyTexto : `${mes}-31`),
+    pasado: totalesEntre(`${anterior}-01`, `${anterior}-${String(esEsteMes ? Math.min(dia, diasAntes) : 31).padStart(2, '0')}`),
+    nombrePasado: new Date(a, m - 2, 1).toLocaleDateString('es-MX', { month: 'long' }),
+    aEstasAlturas: esEsteMes,
+  };
+}
+
+function dibujarComparacionMes() {
+  const { actual, pasado, nombrePasado, aEstasAlturas } = compararMes($('#mes').value);
+  const tarjeta = $('#comparacion-mes');
+  // Sin nada registrado el mes pasado no hay con qué comparar.
+  tarjeta.hidden = pasado.cuantos === 0;
+  if (tarjeta.hidden) return;
+  $('#comparacion-titulo').textContent = `Contra ${nombrePasado}${aEstasAlturas ? ' a estas alturas' : ''}`;
+
+  // "subirEsBueno": ganar más o que te quede más es bueno; gastar más, no.
+  const filas = [
+    { texto: 'Ganaste', ahora: actual.ingresos, antes: pasado.ingresos, subirEsBueno: true },
+    { texto: 'Gastaste', ahora: actual.gastos, antes: pasado.gastos, subirEsBueno: false },
+    { texto: 'Te quedó', ahora: actual.quedo, antes: pasado.quedo, subirEsBueno: true },
+  ];
+  const ul = $('#comparacion-filas');
+  ul.replaceChildren();
+  for (const f of filas) {
+    const diferencia = f.ahora - f.antes;
+    const igual = Math.abs(diferencia) < 0.005;
+    const bien = igual ? null : diferencia > 0 === f.subirEsBueno;
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="comp-texto"></span><strong class="comp-ahora"></strong>
+      <span class="comp-cambio ${igual ? '' : bien ? 'bien' : 'mal'}"><i class="ti ${igual ? 'ti-equal' : diferencia > 0 ? 'ti-arrow-up' : 'ti-arrow-down'}" aria-hidden="true"></i><span></span></span>`;
+    li.querySelector('.comp-texto').textContent = f.texto;
+    li.querySelector('.comp-ahora').textContent = dinero.format(f.ahora);
+    li.querySelector('.comp-cambio span').textContent = igual ? 'Igual' : `${diferencia > 0 ? '+' : '−'}${dinero.format(Math.abs(diferencia))}`;
+    li.title = `${nombrePasado}: ${dinero.format(f.antes)}`;
+    ul.append(li);
+  }
+  // Una frase que resume cómo vas.
+  const mejor = actual.quedo - pasado.quedo;
+  $('#comparacion-frase').textContent =
+    Math.abs(mejor) < 0.005
+      ? 'Vas igual que el mes pasado.'
+      : mejor > 0
+        ? `¡Vas mejor! Te quedan ${dinero.format(mejor)} más que en ${nombrePasado}.`
+        : `Vas ${dinero.format(-mejor)} abajo de ${nombrePasado}. Todavía puedes recuperarte.`;
 }
 
 // ---------- Detalle: ingresos, gastos o todos ----------

@@ -1043,6 +1043,32 @@ a.fila-ajuste { text-decoration: none; }
   font-weight: 700;
 }
 .boton-peligro:disabled { opacity: .35; }
+/* ---------- Comparación con el mes pasado ---------- */
+.comparacion-mes { display: grid; gap: 10px; }
+.comparacion-mes[hidden] { display: none; }
+.comparacion-mes h2 { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; }
+.comparacion-mes h2 .ti { color: var(--acento-2); }
+.comparacion-filas { display: grid; gap: 2px; }
+.comparacion-filas li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 6px 0; }
+.comparacion-filas li + li { border-top: 1px solid var(--linea); }
+.comp-texto { color: var(--suave); font-size: 0.9rem; }
+.comp-ahora { font-weight: 600; text-align: right; }
+.comp-cambio {
+  min-width: 96px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--suave);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--tarjeta-2);
+}
+.comp-cambio.bien { color: var(--positivo); background: rgb(61 220 151 / 0.12); }
+.comp-cambio.mal { color: var(--negativo); background: rgb(255 90 78 / 0.12); }
+#comparacion-frase { margin: 0; }
 /* ---------- Partes que solo existen en la compu ---------- */
 .columna { display: contents; } /* en el teléfono es como si no existiera */
 .marca-lateral, .barra-secciones .agregar-lateral { display: none; }

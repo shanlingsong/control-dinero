@@ -182,6 +182,7 @@ const COMANDOS: Record<string, (datos: Datos, hoy: string) => string> = {
   '/mes': (datos, hoy) => resumen(datos, hoy, hoy.slice(0, 8) + '01', 'Tu mes hasta hoy'),
   '/pagos': pagos,
   '/racha': racha,
+  '/comparar': comparar,
   '/ayuda': () => AYUDA,
   '/help': () => AYUDA,
 };
@@ -191,6 +192,7 @@ const MENU = [
   { command: 'mes', description: 'Cómo vas en este mes' },
   { command: 'pagos', description: 'Lo que debes y lo que te deben' },
   { command: 'racha', description: 'Cuántos días seguidos llevas' },
+  { command: 'comparar', description: 'Cómo vas contra el mes pasado' },
   { command: 'ayuda', description: 'Qué le puedo pedir al bot' },
 ];
 
@@ -609,6 +611,47 @@ function pagos(datos: Datos, hoy: string) {
   }
   return partes.join('\n\n');
 }
+// /comparar: este mes contra el mes pasado "a estas alturas" (del 1 al mismo día), por sección.
+function comparar(datos: Datos, hoy: string) {
+  const [a, m, d] = hoy.split('-').map(Number);
+  const pasado = new Date(Date.UTC(a, m - 2, 1)).toISOString().slice(0, 7);
+  const diasPasado = new Date(Date.UTC(a, m - 1, 0)).getUTCDate();
+  const finPasado = `${pasado}-${String(Math.min(d, diasPasado)).padStart(2, '0')}`;
+  const nombrePasado = MESES_LARGOS[(m + 10) % 12];
+  const totales = (lista: Movimiento[], desde: string, hasta: string) => {
+    const periodo = lista.filter((x) => x.fecha >= desde && x.fecha <= hasta);
+    const ingresos = sumar(periodo.filter((x) => x.tipo === 'ingreso' && x.categoria !== SALDO_INICIAL));
+    const gastos = sumar(periodo.filter((x) => x.tipo === 'gasto'));
+    return { ingresos, gastos, quedo: ingresos - gastos };
+  };
+  // ▲ / ▼ con el color de si es bueno o malo: ganar más es bueno, gastar más no.
+  const linea = (texto: string, ahora: number, antes: number, subirEsBueno: boolean) => {
+    const dif = ahora - antes;
+    if (Math.abs(dif) < 0.005) return `${texto}: <b>${pesos(ahora)}</b> · igual`;
+    const bien = dif > 0 === subirEsBueno;
+    return `${texto}: <b>${pesos(ahora)}</b> · ${bien ? '🟢' : '🔴'} ${dif > 0 ? '+' : '−'}${pesos(Math.abs(dif))}`;
+  };
+
+  const grupos = porSeccion(datos);
+  const lineas = [`📊 <b>Este mes contra ${nombrePasado}</b>`, `del 1 al ${d} de cada mes`];
+  for (const g of grupos) {
+    const ahora = totales(g.movimientos, hoy.slice(0, 8) + '01', hoy);
+    const antes = totales(g.movimientos, `${pasado}-01`, finPasado);
+    lineas.push('');
+    if (grupos.length > 1) lineas.push(encabezadoSeccion(g.seccion));
+    lineas.push(
+      linea('💵 Ganaste', ahora.ingresos, antes.ingresos, true),
+      linea('💸 Gastaste', ahora.gastos, antes.gastos, false),
+      linea('🏦 Te quedó', ahora.quedo, antes.quedo, true)
+    );
+  }
+  if (grupos.length === 0) lineas.push('', 'Todavía no tienes movimientos para comparar.');
+  lineas.push('', URL_APP);
+  return lineas.join('\n');
+}
+
+const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
 // /racha: cuántos días seguidos llevas y si hoy ya cuenta.
 function racha({ activos }: Datos, hoy: string) {
   const dias = rachaActual(activos, hoy);
