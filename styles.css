@@ -1021,6 +1021,28 @@ button.saludo:active { background: var(--tarjeta); }
 .version-app { text-align: center; font-size: 0.75rem; margin: 6px 0 0; }
 .dato-cuenta { display: grid; gap: 2px; padding: 12px; border: 1px solid var(--linea); border-radius: 14px; background: var(--fondo); }
 .dato-cuenta strong { overflow-wrap: anywhere; }
+/* ---------- Privacidad y borrar cuenta ---------- */
+a.fila-ajuste { text-decoration: none; }
+.fila-ajuste + .fila-ajuste, a.fila-ajuste + .fila-ajuste, .fila-ajuste + a.fila-ajuste { border-top: 1px solid var(--linea); }
+.icono-ajuste.morado { background: #8B6CF0; }
+.legal { text-align: center; }
+.legal a { color: var(--acento-2); }
+.zona-peligro p { display: block; } /* texto normal, no en columnas como otros renglones de .cuenta */
+.zona-peligro { display: grid; gap: 10px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--linea); }
+.peligro-texto { color: var(--acento) !important; justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+.boton-peligro {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 12px;
+  padding: 11px 14px;
+  background: var(--acento);
+  color: var(--fondo);
+  font-weight: 700;
+}
+.boton-peligro:disabled { opacity: .35; }
 /* ---------- Partes que solo existen en la compu ---------- */
 .columna { display: contents; } /* en el teléfono es como si no existiera */
 .marca-lateral, .barra-secciones .agregar-lateral { display: none; }

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0B0F17">
+  <title>Aviso de privacidad · Kashiki</title>
+  <link rel="icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root { --fondo: #0B0F17; --tarjeta: #151B26; --linea: #232B3A; --texto: #EEF1F6; --suave: #8A93A6; --acento: #FF5A4E; --acento-2: #FFB347; color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--fondo); color: var(--texto); font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: calc(24px + env(safe-area-inset-top)) 18px calc(48px + env(safe-area-inset-bottom)); }
+    .volver { display: inline-flex; align-items: center; gap: 6px; color: var(--suave); text-decoration: none; font-size: 0.92rem; margin-bottom: 18px; }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+    h1 span { color: var(--acento-2); }
+    .fecha { color: var(--suave); font-size: 0.85rem; margin: 0 0 24px; }
+    h2 { font-size: 1.05rem; margin: 28px 0 8px; }
+    p, li { color: #D5DBE6; }
+    ul { padding-left: 20px; }
+    li { margin: 4px 0; }
+    .resumen { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: 16px; padding: 14px 16px; }
+    .resumen p { margin: 0; }
+    a { color: var(--acento-2); }
+    strong { color: var(--texto); }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="volver" href="./">‹ Regresar a Kashiki</a>
+    <h1>Aviso de privacidad de Kashi<span>ki</span></h1>
+    <p class="fecha">Última actualización: 31 de octubre de 2026</p>
+
+    <div class="resumen">
+      <p><strong>En corto:</strong> Kashiki guarda tu dinero registrado solo para mostrártelo a ti y mandarte tus avisos. No vendemos, no rentamos ni compartimos tus datos con nadie para publicidad. Puedes descargar todo o borrar tu cuenta cuando quieras desde la app.</p>
+    </div>
+
+    <h2>1. ¿Quién es responsable de tus datos?</h2>
+    <p><strong id="responsable">Kashiki (proyecto personal)</strong>, que puedes contactar en <a id="correo-contacto" href="mailto:enzo@abastospoint.mx">enzo@abastospoint.mx</a>.</p>
+
+    <h2>2. ¿Qué datos guardamos?</h2>
+    <ul>
+      <li><strong>Tu cuenta:</strong> tu correo y tu contraseña. La contraseña se guarda cifrada; nadie puede verla, ni nosotros.</li>
+      <li><strong>Lo que registras:</strong> movimientos (ingresos, gastos y ahorros), metas, pagos pendientes, pagos fijos, tus secciones (por ejemplo "Personal" o "Ventas") y los días de tu racha.</li>
+      <li><strong>Tu perfil:</strong> el nombre que escribes. Tu foto se queda solo en tu teléfono; no se sube a la nube.</li>
+      <li><strong>Si conectas Telegram:</strong> el número interno de tu chat con el bot, para poder mandarte mensajes.</li>
+      <li><strong>Si activas las notificaciones:</strong> la "dirección" que tu teléfono le da a Kashiki para recibir avisos.</li>
+    </ul>
+    <p>No pedimos ni guardamos datos de tarjetas, cuentas de banco, ubicación ni contactos.</p>
+
+    <h2>3. ¿Para qué los usamos?</h2>
+    <ul>
+      <li>Para mostrarte tu dinero, tus gráficas, metas y pagos.</li>
+      <li>Para que tus datos estén en todos tus dispositivos donde entres con tu cuenta.</li>
+      <li>Para mandarte los avisos que tú activas: recordatorios de racha, pagos que vencen, pagos fijos y el resumen semanal.</li>
+    </ul>
+    <p>No usamos tus datos para publicidad ni los vendemos.</p>
+
+    <h2>4. ¿Dónde se guardan y con quién se comparten?</h2>
+    <p>Para funcionar, Kashiki usa estos servicios, que procesan tus datos solo para lo de arriba:</p>
+    <ul>
+      <li><strong>Supabase:</strong> la base de datos donde se guarda tu cuenta y lo que registras. Sus servidores pueden estar fuera de México.</li>
+      <li><strong>GitHub Pages:</strong> donde está publicada la app.</li>
+      <li><strong>Telegram</strong> (solo si lo conectas) y el servicio de notificaciones de <strong>Apple o Google</strong> (solo si las activas), para entregarte los avisos.</li>
+    </ul>
+    <p>Cada quien solo puede ver lo suyo: la base de datos tiene reglas para que ninguna cuenta pueda leer ni cambiar los datos de otra.</p>
+
+    <h2>5. ¿Cuánto tiempo los guardamos?</h2>
+    <p>Mientras tengas tu cuenta. Si la borras, se borran también todos tus datos de la nube. Lo que está guardado en tu propio teléfono se borra al cerrar sesión o al quitar la app.</p>
+
+    <h2>6. Tus derechos (ARCO)</h2>
+    <p>Tienes derecho a <strong>Acceder</strong> a tus datos, <strong>Rectificarlos</strong>, <strong>Cancelarlos</strong> (borrarlos) y <strong>Oponerte</strong> a que se usen. Puedes hacerlo tú mismo desde la app:</p>
+    <ul>
+      <li><strong>Ver y descargar todo:</strong> Configuración → Respaldo → Descargar.</li>
+      <li><strong>Corregir:</strong> borra el registro y vuelve a anotarlo, o cambia tu nombre en tu perfil.</li>
+      <li><strong>Dejar de recibir avisos:</strong> Configuración → Notificaciones o Telegram → Desactivar.</li>
+      <li><strong>Borrar tu cuenta y todos tus datos:</strong> Configuración → Mi cuenta → Borrar mi cuenta.</li>
+    </ul>
+    <p>También puedes pedirlo escribiendo al correo de contacto. Te contestamos en un máximo de 20 días hábiles.</p>
+
+    <h2>7. Lo que se guarda en tu navegador</h2>
+    <p>Kashiki guarda una copia de tus datos en tu teléfono para funcionar sin internet. No usamos cookies de rastreo ni herramientas de publicidad.</p>
+
+    <h2>8. Cambios a este aviso</h2>
+    <p>Si cambiamos este aviso, lo publicaremos en esta misma página con su nueva fecha.</p>
+  </main>
+</body>
+</html>

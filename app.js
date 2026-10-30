@@ -2193,11 +2193,16 @@ $('#cerrar-sesion').addEventListener('click', async () => {
       return;
     }
   }
-  esperandoDecision = false;
   await db.auth.signOut();
-  // Lo de esta cuenta se quita del teléfono; sigue guardado en la nube.
+  salirDeLaCuenta('Cerraste sesión. Tus datos siguen guardados en tu cuenta.');
+});
+
+// Quita del teléfono todo lo de la cuenta (al cerrar sesión o al borrarla).
+function salirDeLaCuenta(mensaje) {
+  esperandoDecision = false;
   borrarDatosLocales();
   escribir(CLAVE_DUENO, null);
+  escribir(CLAVE_TELEGRAM, null);
   // Las secciones también eran de esa cuenta.
   secciones = [SECCION_PERSONAL];
   seccionActual = 'personal';
@@ -2206,7 +2211,33 @@ $('#cerrar-sesion').addEventListener('click', async () => {
   ponerCuenta(null);
   dibujar();
   cerrarHoja($('#hoja-ajustes'));
-  avisar('Cerraste sesión. Tus datos siguen guardados en tu cuenta.');
+  avisar(mensaje);
+}
+
+// Borrar la cuenta: primero se escribe BORRAR (para que no pase por accidente).
+$('#borrar-cuenta').addEventListener('click', () => {
+  $('#confirmar-borrado').hidden = !$('#confirmar-borrado').hidden;
+  $('#texto-borrar').value = '';
+  $('#borrar-para-siempre').disabled = true;
+});
+$('#texto-borrar').addEventListener('input', (e) => {
+  $('#borrar-para-siempre').disabled = e.target.value.trim().toUpperCase() !== 'BORRAR';
+});
+$('#borrar-para-siempre').addEventListener('click', async () => {
+  const boton = $('#borrar-para-siempre');
+  boton.disabled = true;
+  try {
+    // Si el teléfono tenía notificaciones, se apagan aquí también.
+    const registro = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    await (await registro?.pushManager?.getSubscription())?.unsubscribe().catch(() => {});
+    await pedirAlBot('borrar-cuenta');
+    await db.auth.signOut({ scope: 'local' }).catch(() => {});
+    $('#confirmar-borrado').hidden = true;
+    salirDeLaCuenta('Tu cuenta y todos tus datos se borraron.');
+  } catch (error) {
+    boton.disabled = false;
+    avisar('No se pudo borrar la cuenta: ' + traducirError(error));
+  }
 });
 
 // Pasa a la cuenta lo que había en la hoja de Google Sheets (de la versión anterior de la app).

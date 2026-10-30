@@ -80,6 +80,13 @@ Deno.serve(async (req) => {
       await db.from('telegram').delete().eq('user_id', usuario);
       return json({ conectado: false });
     }
+    // Borrar la cuenta: al borrar al usuario, la base de datos borra sola TODO lo suyo
+    // (movimientos, metas, pagos, pagos fijos, racha, Telegram y notificaciones: "on delete cascade").
+    if (cuerpo.accion === 'borrar-cuenta') {
+      const { error } = await db.auth.admin.deleteUser(usuario);
+      if (error) throw error;
+      return json({ borrada: true });
+    }
     if (cuerpo.accion === 'push-guardar') return json(await guardarSuscripcion(usuario, cuerpo.suscripcion));
     if (cuerpo.accion === 'push-quitar') {
       await db.from('notificaciones').delete().eq('user_id', usuario).eq('endpoint', String(cuerpo.endpoint ?? ''));
