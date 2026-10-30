@@ -947,6 +947,80 @@ button.saludo:active { background: var(--tarjeta); }
 .aviso-fijos span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aviso-fijos .ti { color: var(--acento-2); font-size: 1.1rem; }
 .aviso-fijos .ti-chevron-right { color: var(--suave); }
+/* ---------- Configuración: lista por apartados con pantallitas ---------- */
+.atras-hoja {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--tarjeta-2);
+  color: var(--texto);
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+}
+.atras-hoja[hidden] { display: none; }
+.ajustes-titulo { text-align: center; font-size: 1.05rem !important; margin-top: -2px !important; }
+.pantalla { display: grid; gap: 10px; }
+.pantalla[hidden] { display: none; }
+.pantalla.entra { animation: pantalla-entra .25s var(--suavecito); }
+.pantalla.regresa { animation: pantalla-regresa .25s var(--suavecito); }
+@keyframes pantalla-entra { from { opacity: 0; transform: translateX(28px); } }
+@keyframes pantalla-regresa { from { opacity: 0; transform: translateX(-28px); } }
+
+.tarjeta-perfil {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--linea);
+  border-radius: 18px;
+  background: var(--fondo);
+  color: var(--texto);
+  text-align: left;
+}
+.tarjeta-perfil .avatar { width: 52px; height: 52px; font-size: 1.3rem; flex: none; }
+.tarjeta-perfil-texto { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tarjeta-perfil-texto strong { font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tarjeta-perfil-texto span { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.grupo-titulo { margin: 8px 4px -4px; font-size: 0.75rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--suave); }
+#grupo-avisos { display: grid; gap: 10px; }
+#grupo-avisos[hidden], .grupo[hidden] { display: none; }
+.grupo { border: 1px solid var(--linea); border-radius: 18px; background: var(--fondo); overflow: hidden; }
+.fila-ajuste {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 12px 12px 12px;
+  border: none;
+  background: none;
+  color: var(--texto);
+  text-align: left;
+  font-size: 0.97rem;
+  transition: background .15s;
+}
+.fila-ajuste + .fila-ajuste { border-top: 1px solid var(--linea); }
+.fila-ajuste:active { background: var(--tarjeta-2); }
+.fila-ajuste-texto { flex: 1; min-width: 0; }
+.fila-ajuste-detalle { color: var(--suave); font-size: 0.85rem; white-space: nowrap; }
+.flecha-fila { color: var(--suave); font-size: 1.05rem; flex: none; }
+.fila-ajuste.peligro { color: var(--acento); justify-content: center; }
+.fila-ajuste.peligro .fila-ajuste-texto { flex: none; }
+.icono-ajuste { flex: none; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; font-size: 1.15rem; color: #fff; }
+.icono-ajuste.azul { background: #4C7DF0; }
+.icono-ajuste.rojo { background: var(--acento); }
+.icono-ajuste.celeste { background: #2AABEE; }
+.icono-ajuste.verde { background: #2FB67C; }
+.icono-ajuste.gris { background: var(--tarjeta-2); color: var(--acento); }
+.version-app { text-align: center; font-size: 0.75rem; margin: 6px 0 0; }
+.dato-cuenta { display: grid; gap: 2px; padding: 12px; border: 1px solid var(--linea); border-radius: 14px; background: var(--fondo); }
+.dato-cuenta strong { overflow-wrap: anywhere; }
 /* ---------- Partes que solo existen en la compu ---------- */
 .columna { display: contents; } /* en el teléfono es como si no existiera */
 .marca-lateral, .barra-secciones .agregar-lateral { display: none; }

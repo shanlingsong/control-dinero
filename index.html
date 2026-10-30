@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=34">
+  <link rel="stylesheet" href="styles.css?v=35">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -353,57 +353,135 @@
 
   <!-- Hoja: ajustes (perfil, cuenta y respaldo) -->
   <dialog id="hoja-ajustes" class="hoja">
+    <!-- Ajustes como en TikTok o el iPhone: una lista por apartados y cada opción abre su pantallita. -->
     <form id="form-ajustes">
-      <div class="hoja-arriba"><div class="agarradera"></div><button type="button" class="cerrar-hoja" data-cierra aria-label="Cerrar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
-      <h2>Tu perfil</h2>
-      <div class="perfil">
-        <div id="avatar-grande" class="avatar grande"></div>
-        <div class="perfil-acciones">
-          <label class="boton-secundario"><i class="ti ti-camera" aria-hidden="true"></i> Cambiar foto
-            <input type="file" id="foto" accept="image/*" hidden>
-          </label>
-          <button type="button" id="quitar-foto" class="boton-texto">Quitar foto</button>
+      <div class="hoja-arriba">
+        <div class="agarradera"></div>
+        <button type="button" id="ajustes-atras" class="atras-hoja" aria-label="Regresar" hidden><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
+        <button type="button" class="cerrar-hoja" data-cierra aria-label="Cerrar"><i class="ti ti-x" aria-hidden="true"></i></button>
+      </div>
+      <h2 id="ajustes-titulo" class="ajustes-titulo">Configuración</h2>
+
+      <!-- ===== Pantalla principal: la lista ===== -->
+      <div class="pantalla" data-pantalla="inicio">
+        <button type="button" class="tarjeta-perfil" data-ir="perfil">
+          <div id="avatar-ajustes" class="avatar"></div>
+          <div class="tarjeta-perfil-texto">
+            <strong id="ajustes-nombre">Tu perfil</strong>
+            <span id="ajustes-correo" class="suave">Foto y nombre</span>
+          </div>
+          <i class="ti ti-chevron-right flecha-fila" aria-hidden="true"></i>
+        </button>
+
+        <p class="grupo-titulo">Cuenta</p>
+        <div class="grupo">
+          <button type="button" class="fila-ajuste" data-ir="cuenta">
+            <span class="icono-ajuste azul"><i class="ti ti-user-circle" aria-hidden="true"></i></span>
+            <span class="fila-ajuste-texto">Mi cuenta</span>
+            <span id="resumen-cuenta" class="fila-ajuste-detalle">Sin cuenta</span>
+            <i class="ti ti-chevron-right flecha-fila" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div id="grupo-avisos">
+          <p class="grupo-titulo">Avisos</p>
+          <div class="grupo">
+            <button type="button" class="fila-ajuste" data-ir="notificaciones">
+              <span class="icono-ajuste rojo"><i class="ti ti-bell" aria-hidden="true"></i></span>
+              <span class="fila-ajuste-texto">Notificaciones</span>
+              <span id="resumen-notif" class="fila-ajuste-detalle"></span>
+              <i class="ti ti-chevron-right flecha-fila" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="fila-ajuste" data-ir="telegram">
+              <span class="icono-ajuste celeste"><i class="ti ti-brand-telegram" aria-hidden="true"></i></span>
+              <span class="fila-ajuste-texto">Telegram</span>
+              <span id="resumen-telegram" class="fila-ajuste-detalle"></span>
+              <i class="ti ti-chevron-right flecha-fila" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+
+        <p class="grupo-titulo">Tus datos</p>
+        <div class="grupo">
+          <button type="button" class="fila-ajuste" data-ir="respaldo">
+            <span class="icono-ajuste verde"><i class="ti ti-database" aria-hidden="true"></i></span>
+            <span class="fila-ajuste-texto">Respaldo</span>
+            <span class="fila-ajuste-detalle">Descargar o restaurar</span>
+            <i class="ti ti-chevron-right flecha-fila" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div id="grupo-sesion" class="grupo">
+          <button type="button" id="cerrar-sesion" class="fila-ajuste peligro">
+            <span class="icono-ajuste gris"><i class="ti ti-logout" aria-hidden="true"></i></span>
+            <span class="fila-ajuste-texto">Cerrar sesión</span>
+          </button>
+        </div>
+
+        <p id="ajustes-version" class="version-app suave"></p>
+      </div>
+
+      <!-- ===== Perfil: foto y nombre ===== -->
+      <div class="pantalla" data-pantalla="perfil" hidden>
+        <div class="perfil">
+          <div id="avatar-grande" class="avatar grande"></div>
+          <div class="perfil-acciones">
+            <label class="boton-secundario"><i class="ti ti-camera" aria-hidden="true"></i> Cambiar foto
+              <input type="file" id="foto" accept="image/*" hidden>
+            </label>
+            <button type="button" id="quitar-foto" class="boton-texto">Quitar foto</button>
+          </div>
+        </div>
+        <label class="etiqueta">¿Cómo te llamas?
+          <input type="text" name="nombre" id="nombre" class="campo" placeholder="Shan" maxlength="20">
+        </label>
+      </div>
+
+      <!-- ===== Mi cuenta ===== -->
+      <div class="pantalla" data-pantalla="cuenta" hidden>
+        <div id="cuenta-con-sesion" class="cuenta" hidden>
+          <div class="dato-cuenta"><span class="suave pequeno">Correo</span><strong id="cuenta-correo"></strong></div>
+          <p class="suave pequeno">Tus datos se guardan en la nube y los ves en cualquier dispositivo donde entres con esta cuenta.</p>
+          <button type="button" id="traer-sheets" class="boton-secundario" hidden><i class="ti ti-table-import" aria-hidden="true"></i> Traer mis datos de Google Sheets</button>
+        </div>
+        <div id="cuenta-sin-sesion" class="cuenta">
+          <p class="suave pequeno">Sin cuenta, tus datos solo viven en este teléfono. Con cuenta se guardan en la nube y los ves en cualquier dispositivo.</p>
+          <button type="button" class="boton-secundario" data-abre="login"><i class="ti ti-login-2" aria-hidden="true"></i> Entrar o crear cuenta</button>
         </div>
       </div>
-      <label class="etiqueta">¿Cómo te llamas?
-        <input type="text" name="nombre" id="nombre" class="campo" placeholder="Shan" maxlength="20">
-      </label>
 
-      <h2 class="separado">Tu cuenta</h2>
-      <div id="cuenta-con-sesion" class="cuenta" hidden>
-        <p class="pequeno"><i class="ti ti-user-circle" aria-hidden="true"></i> <span id="cuenta-correo"></span></p>
-        <button type="button" id="traer-sheets" class="boton-secundario" hidden><i class="ti ti-table-import" aria-hidden="true"></i> Traer mis datos de Google Sheets</button>
+      <!-- ===== Notificaciones ===== -->
+      <div class="pantalla" data-pantalla="notificaciones" hidden>
         <div id="bloque-notificaciones" class="cuenta">
-          <p class="pequeno"><i class="ti ti-bell" aria-hidden="true"></i> <span id="notif-estado">Recibe tus avisos como notificación en este teléfono</span></p>
+          <p class="pequeno"><span id="notif-estado">Recibe tus avisos como notificación en este teléfono</span></p>
           <button type="button" id="notif-activar" class="boton-secundario"><i class="ti ti-bell-ringing" aria-hidden="true"></i> Activar notificaciones</button>
           <div id="notif-activas" class="botones-fila" hidden>
             <button type="button" id="notif-probar" class="boton-secundario"><i class="ti ti-send" aria-hidden="true"></i> Probar</button>
             <button type="button" id="notif-quitar" class="boton-secundario"><i class="ti ti-bell-off" aria-hidden="true"></i> Desactivar</button>
           </div>
+          <p class="suave pequeno">Te aviso cada noche si no has registrado nada o si se vence un pago, una semana antes de tus pagos fijos y los domingos con el resumen de tu semana.</p>
         </div>
+      </div>
+
+      <!-- ===== Telegram ===== -->
+      <div class="pantalla" data-pantalla="telegram" hidden>
         <div id="bloque-telegram" class="cuenta">
-          <p class="pequeno"><i class="ti ti-brand-telegram" aria-hidden="true"></i> <span id="telegram-estado">Recibe recordatorios y tu resumen semanal en Telegram</span></p>
+          <p class="pequeno"><span id="telegram-estado">Recibe recordatorios y tu resumen semanal en Telegram</span></p>
           <a id="telegram-conectar" class="boton-secundario" target="_blank" rel="noopener"><i class="ti ti-brand-telegram" aria-hidden="true"></i> Conectar Telegram</a>
           <button type="button" id="telegram-desconectar" class="boton-secundario" hidden><i class="ti ti-bell-off" aria-hidden="true"></i> Ya no mandarme avisos</button>
+          <p class="suave pequeno">En el chat del bot también puedes escribir /resumen, /mes, /pagos o /racha cuando quieras.</p>
         </div>
-        <button type="button" id="cerrar-sesion" class="boton-secundario"><i class="ti ti-logout" aria-hidden="true"></i> Cerrar sesión</button>
-      </div>
-      <div id="cuenta-sin-sesion" class="cuenta">
-        <p class="suave pequeno">Sin cuenta, tus datos solo viven en este teléfono. Con cuenta se guardan en la nube y los ves en cualquier dispositivo.</p>
-        <button type="button" class="boton-secundario" data-abre="login"><i class="ti ti-login-2" aria-hidden="true"></i> Entrar o crear cuenta</button>
       </div>
 
-      <h2 class="separado">Respaldo</h2>
-      <p class="suave pequeno">Un archivo con todo: movimientos, metas, racha y pagos. Al restaurarlo se agregan los que falten.</p>
-      <div class="acciones izquierda">
-        <button type="button" id="exportar" class="boton-secundario"><i class="ti ti-download" aria-hidden="true"></i> Descargar</button>
-        <label class="boton-secundario"><i class="ti ti-upload" aria-hidden="true"></i> Restaurar
-          <input type="file" id="importar" accept="application/json,.json" hidden>
-        </label>
-      </div>
-
-      <div class="acciones">
-        <button type="button" class="boton-grande" data-cierra>Listo</button>
+      <!-- ===== Respaldo ===== -->
+      <div class="pantalla" data-pantalla="respaldo" hidden>
+        <p class="suave pequeno">Un archivo con todo: movimientos, metas, racha y pagos. Al restaurarlo se agregan los que falten.</p>
+        <div class="acciones izquierda">
+          <button type="button" id="exportar" class="boton-secundario"><i class="ti ti-download" aria-hidden="true"></i> Descargar</button>
+          <label class="boton-secundario"><i class="ti ti-upload" aria-hidden="true"></i> Restaurar
+            <input type="file" id="importar" accept="application/json,.json" hidden>
+          </label>
+        </div>
       </div>
     </form>
   </dialog>
@@ -493,6 +571,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=34"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>

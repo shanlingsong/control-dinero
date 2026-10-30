@@ -52,6 +52,8 @@ const CLAVE_SHEETS = 'mi-dinero:nube'; // conexión vieja con Google Sheets, sol
 const CLAVE_SHEETS_PASADO = 'mi-dinero:sheets-pasado';
 
 const $ = (selector) => document.querySelector(selector);
+// El número de versión sale del ?v= con el que se cargó este archivo (index.html).
+const VERSION_APP = new URL(document.currentScript?.src || location.href).searchParams.get('v') || '—';
 const dinero = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const corto = (n) => '$' + Math.round(n).toLocaleString('es-MX');
 
@@ -489,7 +491,7 @@ function dibujarEncabezado() {
     linea.innerHTML = `<i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i> `;
     linea.append(`${s.nombre} · ${fecha}`);
   }
-  for (const el of [$('#avatar'), $('#avatar-grande')]) {
+  for (const el of [$('#avatar'), $('#avatar-grande'), $('#avatar-ajustes')]) {
     el.style.backgroundImage = perfil.foto ? `url(${perfil.foto})` : '';
     el.textContent = perfil.foto ? '' : (perfil.nombre || '?')[0].toUpperCase();
   }
@@ -2118,6 +2120,10 @@ function ponerCuenta(usuario) {
   $('#cuenta-con-sesion').hidden = !cuenta;
   $('#cuenta-sin-sesion').hidden = Boolean(cuenta);
   $('#cuenta-correo').textContent = cuenta?.email || '';
+  // En Configuración: los avisos y "Cerrar sesión" solo tienen sentido con cuenta.
+  $('#grupo-avisos').hidden = !cuenta;
+  $('#grupo-sesion').hidden = !cuenta;
+  $('#resumen-cuenta').textContent = cuenta ? 'Conectada' : 'Entrar';
   $('#traer-sheets').hidden = !(cuenta && leer(CLAVE_SHEETS, null) && !leer(CLAVE_SHEETS_PASADO, false));
   if (!cuenta) {
     mostrarEstado('ti-device-mobile', 'Sin cuenta: tus datos solo están en este teléfono');
@@ -2257,6 +2263,7 @@ function pintarTelegram(conectado) {
     : 'Recibe recordatorios y tu resumen semanal en Telegram';
   $('#telegram-conectar').hidden = conectado;
   $('#telegram-desconectar').hidden = !conectado;
+  $('#resumen-telegram').textContent = conectado ? 'Conectado' : 'No conectado';
 }
 
 function recordarTelegram(conectado) {
@@ -2352,6 +2359,7 @@ function pintarNotificaciones(texto, activas, sePuede = true) {
   $('#notif-estado').textContent = texto;
   $('#notif-activar').hidden = activas || !sePuede;
   $('#notif-activas').hidden = !activas;
+  $('#resumen-notif').textContent = activas ? 'Activadas' : 'Desactivadas';
 }
 
 async function revisarNotificaciones() {
@@ -2467,10 +2475,51 @@ async function iniciarCuenta() {
 
 // ---------- Ajustes: perfil, cuenta y respaldo ----------
 
+// Configuración es una lista; cada opción abre su pantallita dentro de la misma hoja
+// (y la flecha ‹ regresa a la lista), como en TikTok o en los Ajustes del iPhone.
+const TITULOS_AJUSTES = {
+  inicio: 'Configuración',
+  perfil: 'Tu perfil',
+  cuenta: 'Mi cuenta',
+  notificaciones: 'Notificaciones',
+  telegram: 'Telegram',
+  respaldo: 'Respaldo',
+};
+
+function irAjuste(nombre, regresando = false) {
+  for (const pantalla of document.querySelectorAll('#hoja-ajustes .pantalla')) {
+    const es = pantalla.dataset.pantalla === nombre;
+    pantalla.hidden = !es;
+    pantalla.classList.remove('entra', 'regresa');
+    if (es && nombre !== 'inicio') pantalla.classList.add('entra');
+    if (es && regresando) pantalla.classList.add('regresa');
+  }
+  $('#ajustes-titulo').textContent = TITULOS_AJUSTES[nombre];
+  $('#ajustes-atras').hidden = nombre === 'inicio';
+  $('#hoja-ajustes').scrollTop = 0;
+}
+
+for (const boton of document.querySelectorAll('#hoja-ajustes [data-ir]')) {
+  boton.addEventListener('click', () => irAjuste(boton.dataset.ir));
+}
+$('#ajustes-atras').addEventListener('click', () => {
+  dibujarResumenAjustes();
+  irAjuste('inicio', true);
+});
+
+// Lo que se ve en la lista: tu nombre, tu correo y la versión de la app.
+function dibujarResumenAjustes() {
+  $('#ajustes-nombre').textContent = perfil.nombre || 'Tu perfil';
+  $('#ajustes-correo').textContent = cuenta?.email || 'Foto y nombre';
+  $('#ajustes-version').textContent = `Kashiki · versión ${VERSION_APP}`;
+}
+
 function abrirAjustes() {
   const form = $('#form-ajustes');
   form.nombre.value = perfil.nombre;
   dibujarEncabezado();
+  dibujarResumenAjustes();
+  irAjuste('inicio');
   abrirHoja($('#hoja-ajustes'));
   revisarTelegram();
   revisarNotificaciones().catch(() => {});
