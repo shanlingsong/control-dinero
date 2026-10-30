@@ -221,10 +221,36 @@ async function paraTodos(tarea: (datos: Datos, hoy: string) => string | null) {
 
 // ---------- Datos de un usuario ----------
 
-type Movimiento = { tipo: string; monto: number; categoria: string; fecha: string; creado: number; meta: string };
-type Meta = { id: string; nombre: string; objetivo: number; creado: number };
-type Pendiente = { tipo: string; persona: string; monto: number; fecha: string; nota: string; creado: number };
-type Datos = { movimientos: Movimiento[]; metas: Meta[]; pendientes: Pendiente[]; activos: Set<string> };
+type Movimiento = { tipo: string; monto: number; categoria: string; fecha: string; creado: number; meta: string; seccion: string };
+type Meta = { id: string; nombre: string; objetivo: number; creado: number; seccion: string };
+type Pendiente = { tipo: string; persona: string; monto: number; fecha: string; nota: string; creado: number; seccion: string };
+type Seccion = { id: string; nombre: string; icono?: string };
+type Datos = { movimientos: Movimiento[]; metas: Meta[]; pendientes: Pendiente[]; activos: Set<string>; secciones: Seccion[] };
+
+// Los íconos de la app (Tabler) en versión emoji para Telegram.
+const EMOJIS: Record<string, string> = {
+  'ti-user': '👤',
+  'ti-building-store': '🏪',
+  'ti-briefcase': '💼',
+  'ti-pepper': '🌶️',
+  'ti-home': '🏠',
+  'ti-school': '🎓',
+  'ti-heart': '❤️',
+  'ti-car': '🚗',
+};
+const encabezadoSeccion = (s: Seccion) => `${EMOJIS[s.icono ?? ''] ?? '📁'} <b>${escapar(s.nombre)}</b>`;
+
+// Parte tus datos por sección (Personal, Ventas…). Solo salen las secciones que tienen algo.
+function porSeccion({ movimientos, metas, pendientes, secciones }: Datos) {
+  return secciones
+    .map((seccion) => ({
+      seccion,
+      movimientos: movimientos.filter((m) => m.seccion === seccion.id),
+      metas: metas.filter((m) => m.seccion === seccion.id),
+      pendientes: pendientes.filter((p) => p.seccion === seccion.id),
+    }))
+    .filter((g) => g.movimientos.length + g.metas.length + g.pendientes.length > 0);
+}
 
 async function leerDatos(usuario: string): Promise<Datos> {
   const leer = async (tabla: string) => {
@@ -235,16 +261,27 @@ async function leerDatos(usuario: string): Promise<Datos> {
       monto: Number(fila.monto),
       objetivo: Number(fila.objetivo),
       creado: Number(fila.creado),
+      seccion: fila.seccion || 'personal',
     }));
   };
   const [movimientos, metas, dias, pendientes] = await Promise.all(
     ['movimientos', 'metas', 'dias', 'pendientes'].map(leer)
   );
 
+  // Los nombres de tus secciones se guardan en tu cuenta (los que les pusiste en la app).
+  const { data: cuenta } = await db.auth.admin.getUserById(usuario);
+  const guardadas: Seccion[] = Array.isArray(cuenta?.user?.user_metadata?.secciones) ? cuenta.user.user_metadata.secciones : [];
+  const secciones: Seccion[] = guardadas.some((s) => s.id === 'personal')
+    ? [...guardadas]
+    : [{ id: 'personal', nombre: 'Personal', icono: 'ti-user' }, ...guardadas];
+  for (const x of [...movimientos, ...metas, ...pendientes]) {
+    if (!secciones.some((s) => s.id === x.seccion)) secciones.push({ id: x.seccion, nombre: 'Otra sección' });
+  }
+
   // Un día cuenta para la racha si registraste algo ese día o marcaste "hoy no tuve movimientos".
   const activos = new Set<string>(dias.map((d: any) => d.id));
   [...movimientos, ...metas, ...pendientes].forEach((x: any) => x.creado && activos.add(fechaDe(x.creado)));
-  return { movimientos, metas, pendientes, activos };
+  return { movimientos, metas, pendientes, activos, secciones };
 }
 
 // ---------- Fechas, dinero y racha ----------
@@ -280,7 +317,8 @@ function diasEntre(desde: string, hasta: string) {
   return Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000);
 }
 
-function lineaPago(p: Pendiente, hoy: string) {
+// "etiqueta" = el nombre de la sección, cuando hay varias y el pago sale en una lista junta.
+function lineaPago(p: Pendiente & { etiqueta?: string }, hoy: string) {
   const dias = diasEntre(hoy, p.fecha);
   let cuando;
   if (dias < -1) cuando = `venció hace ${-dias} días`;
@@ -289,10 +327,11 @@ function lineaPago(p: Pendiente, hoy: string) {
   else if (dias === 1) cuando = 'mañana';
   else cuando = `${fechaCorta(p.fecha)} (en ${dias} días)`;
   const nota = p.nota ? ` — ${escapar(p.nota)}` : '';
-  return `• <b>${escapar(p.persona)}</b> · ${pesos(p.monto)} · ${cuando}${nota}`;
+  const seccion = p.etiqueta ? ` <i>(${escapar(p.etiqueta)})</i>` : '';
+  return `• <b>${escapar(p.persona)}</b> · ${pesos(p.monto)} · ${cuando}${nota}${seccion}`;
 }
 
-function pagosHasta(pendientes: Pendiente[], tipo: string, hasta: string) {
+function pagosHasta<T extends Pendiente>(pendientes: T[], tipo: string, hasta: string) {
   return pendientes.filter((p) => p.tipo === tipo && p.fecha <= hasta).sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
@@ -318,11 +357,16 @@ const sumar = (lista: { monto: number }[]) => lista.reduce((total, m) => total +
 // ---------- Los mensajes ----------
 
 // Cada noche. Solo manda mensaje si hay algo que recordar.
-function recordatorioDiario({ pendientes, activos }: Datos, hoy: string) {
+function recordatorioDiario(datos: Datos, hoy: string) {
+  const { activos } = datos;
   const partes: string[] = [];
 
-  const debo = pagosHasta(pendientes, 'debo', sumarDias(hoy, 1));
-  const meDeben = pagosHasta(pendientes, 'me-deben', sumarDias(hoy, 1));
+  // Si tienes varias secciones, cada pago dice de cuál es.
+  const grupos = porSeccion(datos);
+  const conNombre = grupos.length > 1;
+  const etiquetados = grupos.flatMap((g) => g.pendientes.map((p) => ({ ...p, etiqueta: conNombre ? g.seccion.nombre : '' })));
+  const debo = pagosHasta(etiquetados, 'debo', sumarDias(hoy, 1));
+  const meDeben = pagosHasta(etiquetados, 'me-deben', sumarDias(hoy, 1));
   if (debo.length > 0) partes.push('📌 <b>Pagos que tienes que hacer</b>\n' + debo.map((p) => lineaPago(p, hoy)).join('\n'));
   if (meDeben.length > 0) partes.push('💬 <b>Te tienen que pagar</b>\n' + meDeben.map((p) => lineaPago(p, hoy)).join('\n'));
 
@@ -345,35 +389,53 @@ function resumenSemanal(datos: Datos, hoy: string) {
   return resumen(datos, hoy, sumarDias(hoy, -6), 'Tu semana en Kashiki');
 }
 
-// Resume desde "inicio" hasta hoy: con cuánto empezaste, cuánto generaste, gastaste y con cuánto vas.
-function resumen({ movimientos, metas, pendientes, activos }: Datos, hoy: string, inicio: string, titulo: string) {
+// Resume desde "inicio" hasta hoy. Si tienes varias secciones (Personal, Ventas…),
+// cada una sale por separado con el nombre que le pusiste en la app.
+function resumen(datos: Datos, hoy: string, inicio: string, titulo: string) {
   const totalDias = diasEntre(inicio, hoy) + 1;
+  const grupos = porSeccion(datos);
+  const lineas = [`📊 <b>${titulo}</b>`, `${fechaCorta(inicio)} – ${fechaCorta(hoy)}`];
+
+  if (grupos.length === 0) lineas.push('', 'Todavía no tienes movimientos registrados.');
+  for (const g of grupos) {
+    lineas.push('');
+    if (grupos.length > 1) lineas.push(`━━━━━━━━━━`, encabezadoSeccion(g.seccion));
+    lineas.push(...resumenDeSeccion(g, hoy, inicio));
+  }
+
+  const diasRegistrados = Array.from({ length: totalDias }, (_, i) => sumarDias(inicio, i)).filter((d) => datos.activos.has(d)).length;
+  const racha = rachaActual(datos.activos, hoy);
+  lineas.push('', `🔥 Racha: <b>${racha} ${racha === 1 ? 'día' : 'días'}</b> · Registraste ${diasRegistrados} de ${totalDias} días`);
+  lineas.push('', URL_APP);
+  return lineas.join('\n');
+}
+
+// Lo de UNA sección: con cuánto empezaste, cuánto generaste, gastaste, con cuánto vas, metas y pagos.
+function resumenDeSeccion(
+  { movimientos, metas, pendientes }: { movimientos: Movimiento[]; metas: Meta[]; pendientes: Pendiente[] },
+  hoy: string,
+  inicio: string
+) {
   const antes = movimientos.filter((m) => m.fecha < inicio);
-  const semana = movimientos.filter((m) => m.fecha >= inicio && m.fecha <= hoy);
+  const periodo = movimientos.filter((m) => m.fecha >= inicio && m.fecha <= hoy);
 
   // El saldo inicial no es dinero que generaste: cuenta como lo que ya tenías al empezar.
   const esSaldoInicial = (m: Movimiento) => m.tipo === 'ingreso' && m.categoria === SALDO_INICIAL;
-  const inicial = antes.reduce((t, m) => t + efecto(m), 0) + sumar(semana.filter(esSaldoInicial));
-  const final = antes.reduce((t, m) => t + efecto(m), 0) + semana.reduce((t, m) => t + efecto(m), 0);
-  const generado = sumar(semana.filter((m) => m.tipo === 'ingreso' && m.categoria !== SALDO_INICIAL));
-  const gastado = sumar(semana.filter((m) => m.tipo === 'gasto'));
-  const apartado = sumar(semana.filter((m) => m.tipo === 'ahorro'));
+  const inicial = antes.reduce((t, m) => t + efecto(m), 0) + sumar(periodo.filter(esSaldoInicial));
+  const final = antes.reduce((t, m) => t + efecto(m), 0) + periodo.reduce((t, m) => t + efecto(m), 0);
+  const generado = sumar(periodo.filter((m) => m.tipo === 'ingreso' && m.categoria !== SALDO_INICIAL));
+  const gastado = sumar(periodo.filter((m) => m.tipo === 'gasto'));
+  const apartado = sumar(periodo.filter((m) => m.tipo === 'ahorro'));
 
   const porCategoria: Record<string, number> = {};
-  semana
+  periodo
     .filter((m) => m.tipo === 'gasto')
     .forEach((m) => (porCategoria[m.categoria] = (porCategoria[m.categoria] || 0) + m.monto));
   const top = Object.entries(porCategoria)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  const diasRegistrados = Array.from({ length: totalDias }, (_, i) => sumarDias(inicio, i)).filter((d) => activos.has(d)).length;
-  const racha = rachaActual(activos, hoy);
-
   const lineas = [
-    `📊 <b>${titulo}</b>`,
-    `${fechaCorta(inicio)} – ${fechaCorta(hoy)}`,
-    '',
     `🏁 Empezaste con: <b>${pesos(inicial)}</b>`,
     `💵 Generaste: <b>+${pesos(generado)}</b>`,
     `💸 Gastaste: <b>−${pesos(gastado)}</b>`,
@@ -387,7 +449,7 @@ function resumen({ movimientos, metas, pendientes, activos }: Datos, hoy: string
   }
 
   if (metas.length > 0) {
-    lineas.push('', '<b>Tus metas</b>');
+    lineas.push('', '<b>Metas</b>');
     metas.forEach((meta) => {
       const ahorrado = sumar(movimientos.filter((m) => m.tipo === 'ahorro' && m.meta === meta.id));
       const avance = Math.min(100, Math.round((ahorrado / meta.objetivo) * 100));
@@ -406,27 +468,25 @@ function resumen({ movimientos, metas, pendientes, activos }: Datos, hoy: string
     lineas.push('', '<b>💬 Te tienen que pagar esta semana</b>');
     meDeben.forEach((p) => lineas.push(lineaPago(p, hoy)));
   }
-
-  lineas.push('', `🔥 Racha: <b>${racha} ${racha === 1 ? 'día' : 'días'}</b> · Registraste ${diasRegistrados} de ${totalDias} días`);
-  lineas.push('', URL_APP);
-  return lineas.join('\n');
+  return lineas;
 }
 
-// /pagos: todo lo pendiente, sin importar la fecha.
-function pagos({ pendientes }: Datos, hoy: string) {
-  const debo = pagosHasta(pendientes, 'debo', '9999-12-31');
-  const meDeben = pagosHasta(pendientes, 'me-deben', '9999-12-31');
-  if (debo.length === 0 && meDeben.length === 0) return '✨ No tienes pagos pendientes: ni debes ni te deben.';
-  const partes = [];
-  if (debo.length > 0) {
-    partes.push(`📌 <b>Debes ${pesos(sumar(debo))}</b>\n` + debo.map((p) => lineaPago(p, hoy)).join('\n'));
-  }
-  if (meDeben.length > 0) {
-    partes.push(`💬 <b>Te deben ${pesos(sumar(meDeben))}</b>\n` + meDeben.map((p) => lineaPago(p, hoy)).join('\n'));
+// /pagos: todo lo pendiente, sin importar la fecha (separado por sección si tienes varias).
+function pagos(datos: Datos, hoy: string) {
+  const grupos = porSeccion(datos).filter((g) => g.pendientes.length > 0);
+  if (grupos.length === 0) return '✨ No tienes pagos pendientes: ni debes ni te deben.';
+  const partes: string[] = [];
+  for (const g of grupos) {
+    const debo = pagosHasta(g.pendientes, 'debo', '9999-12-31');
+    const meDeben = pagosHasta(g.pendientes, 'me-deben', '9999-12-31');
+    const bloque: string[] = [];
+    if (grupos.length > 1) bloque.push(encabezadoSeccion(g.seccion));
+    if (debo.length > 0) bloque.push(`📌 <b>Debes ${pesos(sumar(debo))}</b>\n` + debo.map((p) => lineaPago(p, hoy)).join('\n'));
+    if (meDeben.length > 0) bloque.push(`💬 <b>Te deben ${pesos(sumar(meDeben))}</b>\n` + meDeben.map((p) => lineaPago(p, hoy)).join('\n'));
+    partes.push(bloque.join('\n'));
   }
   return partes.join('\n\n');
 }
-
 // /racha: cuántos días seguidos llevas y si hoy ya cuenta.
 function racha({ activos }: Datos, hoy: string) {
   const dias = rachaActual(activos, hoy);
