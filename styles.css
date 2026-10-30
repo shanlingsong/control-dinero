@@ -1320,6 +1320,29 @@ body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 .chips.envolver .chip { padding: 6px 9px; gap: 4px; font-size: 0.78rem; }
 .carrusel:has(.chips.envolver) .flecha { display: none; }
 .chip-desplegar { border-style: dashed; }
+/* Micrófono para dictar (en la cajita de anotar escribiendo) */
+.ia { padding: 6px 6px 6px 6px; border-radius: 22px; }
+.boton-dictar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--tarjeta-2);
+  color: var(--acento);
+  font-size: 1.25rem;
+  transition: background .2s, color .2s, transform .12s;
+}
+.boton-dictar:active { transform: scale(.92); }
+/* Mientras escucha: rojo y latiendo */
+.ia.escuchando { border-color: rgb(255 90 82 / 0.6); }
+.ia.escuchando .boton-dictar { background: var(--negativo); color: #fff; animation: latido-mic 1.1s ease-in-out infinite; }
+@keyframes latido-mic {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(255 90 82 / 0.55); }
+  50% { box-shadow: 0 0 0 9px rgb(255 90 82 / 0); }
+}
 /* Barra de abajo flotante (con nombres) y el + aparte */
 .barra-secciones {
   left: 16px;

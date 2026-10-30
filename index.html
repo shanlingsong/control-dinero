@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=42">
+  <link rel="stylesheet" href="styles.css?v=43">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -81,10 +81,11 @@
         <i class="ti ti-repeat" aria-hidden="true"></i><span id="aviso-fijos-texto"></span><i class="ti ti-chevron-right" aria-hidden="true"></i>
       </button>
 
-      <!-- Anotar escribiendo (o dictando con el micrófono del teclado): Kashiki lo acomoda y abre el formulario lleno -->
+      <!-- Anotar escribiendo o dictando: Kashiki lo acomoda y abre el formulario lleno.
+           El micrófono empieza a escuchar al picarlo; la cajita es solo para escribir. -->
       <form id="form-ia" class="ia" hidden>
-        <i class="ti ti-sparkles" aria-hidden="true"></i>
-        <input type="text" name="texto" placeholder="Escribe o dicta: gasté 80 en tacos ayer" autocomplete="off" enterkeyhint="send" aria-label="Anotar escribiendo" required>
+        <button type="button" id="dictar" class="boton-dictar" aria-label="Dictar con la voz"><i class="ti ti-microphone" aria-hidden="true"></i></button>
+        <input type="text" name="texto" placeholder="Escribe: gasté 80 en tacos ayer" autocomplete="off" enterkeyhint="send" aria-label="Anotar escribiendo" required>
         <button type="submit" class="boton-icono" aria-label="Anotar"><i class="ti ti-arrow-up" aria-hidden="true"></i></button>
       </form>
 
@@ -628,6 +629,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=42"></script>
+  <script src="app.js?v=43"></script>
 </body>
 </html>
