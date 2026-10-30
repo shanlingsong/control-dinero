@@ -846,70 +846,60 @@ code { font-size: 0.8em; background: var(--fondo); padding: 1px 5px; border-radi
 }
 #buscar-filtros { flex-wrap: wrap; }
 #vista-buscar { max-width: 720px; }
-/* ---------- Secciones de dinero: pastilla + menú que se despliega ---------- */
-.selector-seccion { position: relative; display: flex; margin-bottom: 12px; }
-.selector-seccion[hidden] { display: none; }
-.pastilla-seccion {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--linea);
-  background: var(--tarjeta);
-  color: var(--texto);
-  border-radius: 999px;
-  padding: 6px 10px 6px 12px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  transition: border-color .2s, transform .12s;
+/* ---------- Secciones de dinero: se cambian picándole a tu nombre ---------- */
+button.saludo {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 10px;
+  text-align: left;
+  color: inherit;
+  transition: background .15s;
 }
-.pastilla-seccion:active { transform: scale(.96); }
-.pastilla-seccion > .ti:first-child { color: var(--acento-2); font-size: 1.05rem; }
-.pastilla-seccion .flecha-seccion { color: var(--suave); font-size: 0.95rem; transition: transform .25s var(--suavecito); }
-.pastilla-seccion[aria-expanded="true"] { border-color: var(--acento-2); }
-.pastilla-seccion[aria-expanded="true"] .flecha-seccion { transform: rotate(180deg); }
+button.saludo:active { background: var(--tarjeta); }
+.saludo .saludo-linea { display: flex; align-items: center; gap: 3px; min-width: 0; font-size: inherit; color: inherit; overflow: visible; }
+.saludo .saludo-linea strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flecha-nombre { flex: none; font-size: 0.95rem; color: var(--suave); }
+#fecha-hoy .ti { color: var(--acento-2); font-size: 0.85rem; vertical-align: -1px; }
 
-.menu-secciones {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 6;
-  width: min(280px, calc(100vw - 32px));
-  display: grid;
-  gap: 2px;
-  padding: 6px;
-  background: var(--tarjeta-2);
-  border: 1px solid var(--linea);
-  border-radius: 18px;
-  box-shadow: 0 16px 40px rgb(0 0 0 / 0.45);
-  transform-origin: top left;
-  animation: menu-despliega .22s var(--rebote);
-}
-.menu-secciones[hidden] { display: none; }
-@keyframes menu-despliega { from { opacity: 0; transform: scale(.9) translateY(-6px); } }
-.opcion-seccion { display: flex; align-items: center; border-radius: 12px; transition: background .15s; }
-.opcion-seccion:hover, .opcion-seccion.actual { background: rgb(255 255 255 / 0.04); }
+.hoja-contenido { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); }
+.lista-secciones { display: grid; gap: 2px; margin: 0 -6px; }
+.opcion-seccion { display: flex; align-items: center; border-radius: 14px; transition: background .15s; }
+.opcion-seccion.actual { background: rgb(255 179 71 / 0.08); }
 .opcion-elegir {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   border: none;
   background: none;
   color: var(--texto);
-  padding: 10px 6px 10px 10px;
+  padding: 10px 6px 10px 8px;
   text-align: left;
-  font-size: 0.95rem;
+  font-size: 1rem;
 }
-.opcion-elegir span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.opcion-elegir > .ti:first-child { font-size: 1.15rem; color: var(--suave); }
-.opcion-seccion.actual .opcion-elegir > .ti:first-child { color: var(--acento-2); }
-.palomita { color: var(--acento-2); visibility: hidden; }
+.opcion-icono {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--tarjeta-2);
+  color: var(--suave);
+  font-size: 1.2rem;
+}
+.opcion-seccion.actual .opcion-icono { background: rgb(255 179 71 / 0.16); color: var(--acento-2); }
+.opcion-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opcion-seccion.actual .opcion-nombre { font-weight: 600; }
+.palomita { font-size: 1.35rem; color: var(--acento-2); visibility: hidden; }
 .opcion-seccion.actual .palomita { visibility: visible; }
 .opcion-editar {
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   margin-right: 4px;
   border: none;
   border-radius: 10px;
@@ -917,24 +907,22 @@ code { font-size: 0.8em; background: var(--fondo); padding: 1px 5px; border-radi
   color: var(--suave);
   display: grid;
   place-items: center;
+  font-size: 1.1rem;
 }
-.opcion-editar:hover { background: var(--tarjeta); color: var(--texto); }
 .opcion-nueva {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 4px;
-  padding: 11px 10px;
+  gap: 12px;
+  margin-top: 6px;
+  padding: 12px 8px 4px;
   border: none;
   border-top: 1px solid var(--linea);
-  border-radius: 0 0 12px 12px;
   background: none;
   color: var(--suave);
-  font-size: 0.9rem;
+  font-size: 1rem;
   text-align: left;
 }
-.opcion-nueva:hover { color: var(--texto); }
-.opcion-nueva .ti { font-size: 1.15rem; }
+.opcion-nueva .opcion-icono { background: none; border: 1px dashed var(--linea); }
 .iconos-seccion { flex-wrap: wrap; }
 .icono-chip { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; font-size: 1.3rem; }
 /* ---------- Partes que solo existen en la compu ---------- */

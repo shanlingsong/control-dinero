@@ -464,7 +464,16 @@ function dibujar() {
 
 function dibujarEncabezado() {
   $('#saludo').textContent = perfil.nombre ? `Hola, ${perfil.nombre}` : 'Hola';
-  $('#fecha-hoy').textContent = mayuscula(new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }));
+  // Abajo del nombre: la fecha. Si no estás en Personal, antes va la sección, para que sepas dónde estás.
+  const fecha = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+  const linea = $('#fecha-hoy');
+  if (seccionActual === 'personal') {
+    linea.textContent = mayuscula(fecha);
+  } else {
+    const s = seccionVista();
+    linea.innerHTML = `<i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i> `;
+    linea.append(`${s.nombre} · ${fecha}`);
+  }
   for (const el of [$('#avatar'), $('#avatar-grande')]) {
     el.style.backgroundImage = perfil.foto ? `url(${perfil.foto})` : '';
     el.textContent = perfil.foto ? '' : (perfil.nombre || '?')[0].toUpperCase();
@@ -474,7 +483,7 @@ function dibujarEncabezado() {
 function dibujarSaldo() {
   const total = deSeccion('movimientos').reduce((t, m) => t + efecto(m), 0);
   if (grafica.tocando) return;
-  $('#saldo-etiqueta').textContent = seccionActual === 'personal' ? 'Tu dinero' : `Dinero de ${seccionVista().nombre}`;
+  $('#saldo-etiqueta').textContent = 'Tu dinero';
   contar($('#saldo'), total);
   dibujarComparacion();
 }
@@ -695,7 +704,7 @@ function soltarGrafica() {
     if (el) el.style.display = 'none';
   }
   dibujarGrafica(false);
-  $('#saldo-etiqueta').textContent = seccionActual === 'personal' ? 'Tu dinero' : `Dinero de ${seccionVista().nombre}`;
+  $('#saldo-etiqueta').textContent = 'Tu dinero';
   const total = Number($('#saldo').dataset.valor || 0);
   $('#saldo').textContent = dinero.format(total);
   dibujarComparacion();
@@ -1646,64 +1655,44 @@ function dibujarSecciones() {
   }
   if (!secciones.some((s) => s.id === seccionActual)) seccionActual = 'personal';
 
-  // La pastilla: solo la sección en la que estás.
-  const actual = seccionVista();
-  $('#seccion-icono').className = `ti ${actual.icono || 'ti-folder'}`;
-  $('#seccion-nombre').textContent = actual.nombre;
-
-  // El menú que se despliega: todas las secciones (con palomita en la actual), un lápiz para
-  // editar cada una y, hasta abajo, "Nueva sección".
-  const menu = $('#menu-secciones');
-  menu.replaceChildren();
+  // La hoja "Cambiar a" (sale al picarle a tu nombre): todas las secciones con palomita en la actual,
+  // un lápiz para editar cada una y, hasta abajo, "Nueva sección".
+  const lista = $('#lista-secciones');
+  lista.replaceChildren();
   for (const s of secciones) {
     const fila = document.createElement('div');
     fila.className = 'opcion-seccion' + (s.id === seccionActual ? ' actual' : '');
-    fila.innerHTML = `<button type="button" class="opcion-elegir" role="menuitemradio" aria-checked="${s.id === seccionActual}">
-        <i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i><span></span>
-        <i class="ti ti-check palomita" aria-hidden="true"></i>
+    fila.innerHTML = `<button type="button" class="opcion-elegir" role="radio" aria-checked="${s.id === seccionActual}">
+        <span class="opcion-icono"><i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i></span><span class="opcion-nombre"></span>
+        <i class="ti ti-circle-check palomita" aria-hidden="true"></i>
       </button>
       <button type="button" class="opcion-editar"><i class="ti ti-pencil" aria-hidden="true"></i></button>`;
-    fila.querySelector('span').textContent = s.nombre;
+    fila.querySelector('.opcion-nombre').textContent = s.nombre;
     fila.querySelector('.opcion-editar').setAttribute('aria-label', `Editar ${s.nombre}`);
     fila.querySelector('.opcion-elegir').addEventListener('click', () => {
-      cerrarMenuSecciones();
+      cerrarHoja($('#hoja-cambiar'));
       if (s.id !== seccionActual) cambiarSeccion(s.id);
     });
     fila.querySelector('.opcion-editar').addEventListener('click', () => {
-      cerrarMenuSecciones();
+      cerrarHoja($('#hoja-cambiar'));
       abrirSeccion(s);
     });
-    menu.append(fila);
+    lista.append(fila);
   }
   const nueva = document.createElement('button');
   nueva.type = 'button';
   nueva.className = 'opcion-nueva';
-  nueva.setAttribute('role', 'menuitem');
-  nueva.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i>Nueva sección';
+  nueva.innerHTML = '<span class="opcion-icono"><i class="ti ti-plus" aria-hidden="true"></i></span>Nueva sección';
   nueva.addEventListener('click', () => {
-    cerrarMenuSecciones();
+    cerrarHoja($('#hoja-cambiar'));
     abrirSeccion(null);
   });
-  menu.append(nueva);
+  lista.append(nueva);
 }
 
-function abrirMenuSecciones() {
-  $('#menu-secciones').hidden = false;
-  $('#seccion-boton').setAttribute('aria-expanded', 'true');
-}
-
-function cerrarMenuSecciones() {
-  $('#menu-secciones').hidden = true;
-  $('#seccion-boton').setAttribute('aria-expanded', 'false');
-}
-
-$('#seccion-boton').addEventListener('click', () => ($('#menu-secciones').hidden ? abrirMenuSecciones() : cerrarMenuSecciones()));
-// Tocar fuera del menú, o la tecla Esc, lo cierra.
-document.addEventListener('click', (e) => {
-  if (!$('#menu-secciones').hidden && !e.target.closest('#secciones')) cerrarMenuSecciones();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') cerrarMenuSecciones();
+$('#cambiar-seccion').addEventListener('click', () => {
+  dibujarSecciones();
+  abrirHoja($('#hoja-cambiar'));
 });
 
 function cambiarSeccion(id) {
@@ -1796,7 +1785,6 @@ function mostrarVista(nombre) {
     else boton.removeAttribute('aria-current');
   }
   $('#boton-agregar').hidden = nombre !== 'dinero';
-  $('#secciones').hidden = nombre === 'racha'; // la racha es una sola para todas las secciones
   window.scrollTo(0, 0);
   // Al entrar a una sección se repiten sus animaciones.
   if (nombre === 'detalle') {

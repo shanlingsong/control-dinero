@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=30">
+  <link rel="stylesheet" href="styles.css?v=31">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -33,10 +33,11 @@
 
   <header class="encabezado">
     <button type="button" id="avatar" class="avatar" aria-label="Tu perfil"></button>
-    <div class="saludo">
-      <strong id="saludo">Hola</strong>
+    <!-- Picarle a tu nombre cambia de sección de dinero (como cambiar de cuenta en Instagram) -->
+    <button type="button" id="cambiar-seccion" class="saludo" aria-haspopup="dialog" aria-label="Cambiar de sección de dinero">
+      <span class="saludo-linea"><strong id="saludo">Hola</strong><i class="ti ti-chevron-down flecha-nombre" aria-hidden="true"></i></span>
       <span id="fecha-hoy"></span>
-    </div>
+    </button>
     <button type="button" id="pastilla-racha" class="pastilla-racha" aria-label="Ver tu racha">
       <i class="ti ti-flame" aria-hidden="true"></i><b id="racha-mini">0</b>
     </button>
@@ -48,16 +49,6 @@
 
   <main>
     <p id="estado" class="estado"></p>
-
-    <!-- Secciones de dinero: solo se ve en la que estás; al picarle se despliegan las demás -->
-    <div id="secciones" class="selector-seccion">
-      <button type="button" id="seccion-boton" class="pastilla-seccion" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-secciones">
-        <i id="seccion-icono" class="ti ti-user" aria-hidden="true"></i>
-        <span id="seccion-nombre">Personal</span>
-        <i class="ti ti-chevron-down flecha-seccion" aria-hidden="true"></i>
-      </button>
-      <div id="menu-secciones" class="menu-secciones" role="menu" hidden></div>
-    </div>
 
     <!-- ========== Sección: Dinero ========== -->
     <section id="vista-dinero" class="vista">
@@ -395,6 +386,15 @@
     </form>
   </dialog>
 
+  <!-- Hoja: cambiar de sección (sale al picarle a tu nombre) -->
+  <dialog id="hoja-cambiar" class="hoja">
+    <div class="hoja-contenido">
+      <div class="hoja-arriba"><div class="agarradera"></div><button type="button" class="cerrar-hoja" data-cierra aria-label="Cerrar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
+      <h2>Cambiar a</h2>
+      <div id="lista-secciones" class="lista-secciones" role="radiogroup" aria-label="Secciones de dinero"></div>
+    </div>
+  </dialog>
+
   <!-- Hoja: crear o cambiar una sección de dinero -->
   <dialog id="hoja-seccion" class="hoja">
     <form id="form-seccion">
@@ -446,6 +446,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=30"></script>
+  <script src="app.js?v=31"></script>
 </body>
 </html>
