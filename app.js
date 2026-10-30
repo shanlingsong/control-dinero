@@ -1129,15 +1129,22 @@ function avisar(texto, textoAccion, alTocar) {
 
 // ---------- Hojas que suben desde abajo ----------
 
+// Cada hoja recuerda su "cierre pendiente" para que abrir y cerrar rápido no la deje a medias.
 function abrirHoja(hoja) {
+  clearTimeout(hoja.cierre);
   hoja.classList.remove('cerrando');
-  hoja.showModal();
+  hoja.style.transform = '';
+  hoja.style.transition = '';
+  if (!hoja.open) hoja.showModal();
+  hoja.scrollTop = 0;
 }
 
 function cerrarHoja(hoja) {
-  if (!hoja.open) return;
+  if (!hoja?.open) return;
+  document.activeElement?.blur(); // esconde el teclado del teléfono si estaba abierto
   hoja.classList.add('cerrando');
-  setTimeout(() => {
+  clearTimeout(hoja.cierre);
+  hoja.cierre = setTimeout(() => {
     hoja.classList.remove('cerrando');
     hoja.close();
   }, 210);
@@ -1155,6 +1162,55 @@ for (const hoja of document.querySelectorAll('.hoja')) {
 }
 for (const boton of document.querySelectorAll('[data-cierra]')) {
   boton.addEventListener('click', () => cerrarHoja(boton.closest('dialog')));
+}
+
+// Deslizar una hoja hacia abajo la cierra (como en las apps del iPhone).
+// Solo cuenta si la hoja está hasta arriba y el dedo va hacia abajo; si va de lado
+// (por ejemplo en las categorías) o la hoja tiene scroll, no hace nada.
+const DESLIZAR_PARA_CERRAR = 110; // pixeles
+for (const hoja of document.querySelectorAll('.hoja')) {
+  let inicio = null;
+  let bajando = null; // null = aún no se sabe, true = cerrando, false = es otro gesto
+  let distancia = 0;
+
+  hoja.addEventListener('touchstart', (e) => {
+    const desdeArriba = e.target.closest('.hoja-arriba');
+    inicio = e.touches.length === 1 && (desdeArriba || hoja.scrollTop <= 0) ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    bajando = null;
+    distancia = 0;
+  }, { passive: true });
+
+  hoja.addEventListener('touchmove', (e) => {
+    if (!inicio || bajando === false) return;
+    const dx = e.touches[0].clientX - inicio.x;
+    const dy = e.touches[0].clientY - inicio.y;
+    if (bajando === null) {
+      if (Math.abs(dx) + Math.abs(dy) < 8) return;
+      bajando = dy > 0 && Math.abs(dy) > Math.abs(dx);
+      if (!bajando) return;
+      hoja.style.transition = 'none';
+    }
+    e.preventDefault();
+    distancia = Math.max(0, dy);
+    hoja.style.transform = `translateY(${distancia}px)`;
+  }, { passive: false });
+
+  hoja.addEventListener('touchend', () => {
+    if (!bajando) return;
+    bajando = null;
+    hoja.style.transition = 'transform .22s ease-out';
+    if (distancia > DESLIZAR_PARA_CERRAR) {
+      hoja.style.transform = 'translateY(100%)';
+      setTimeout(() => {
+        hoja.close();
+        hoja.style.transition = '';
+        hoja.style.transform = '';
+      }, 220);
+    } else {
+      hoja.style.transform = '';
+      setTimeout(() => (hoja.style.transition = ''), 220);
+    }
+  });
 }
 
 // ---------- Formulario de movimientos (teclado propio) ----------

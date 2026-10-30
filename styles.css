@@ -677,6 +677,34 @@ a.boton-secundario { text-decoration: none; }
 .hoja h2 { margin: 0; font-size: 1.15rem; }
 .hoja h2.separado { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--linea); }
 .agarradera { width: 40px; height: 5px; border-radius: 3px; background: var(--linea); margin: 0 auto 4px; }
+/* Parte de arriba de cada hoja: la rayita para deslizar y la X para cerrar. Se queda fija al hacer scroll. */
+.hoja-arriba {
+  position: sticky;
+  top: -10px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  margin: -10px -16px -4px;
+  padding: 10px 16px 0;
+  background: var(--tarjeta);
+  touch-action: none;
+}
+.cerrar-hoja {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--tarjeta-2);
+  color: var(--suave);
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+}
+.cerrar-hoja:active { transform: scale(.9); }
 
 .campo {
   width: 100%;
