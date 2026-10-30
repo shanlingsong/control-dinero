@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=28">
+  <link rel="stylesheet" href="styles.css?v=29">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -48,6 +48,9 @@
 
   <main>
     <p id="estado" class="estado"></p>
+
+    <!-- Secciones de dinero: con un toque cambias entre Personal, Mi empresa, etc. -->
+    <div id="secciones" class="secciones" role="group" aria-label="Secciones de dinero"></div>
 
     <!-- ========== Sección: Dinero ========== -->
     <section id="vista-dinero" class="vista">
@@ -385,6 +388,22 @@
     </form>
   </dialog>
 
+  <!-- Hoja: crear o cambiar una sección de dinero -->
+  <dialog id="hoja-seccion" class="hoja">
+    <form id="form-seccion">
+      <div class="hoja-arriba"><div class="agarradera"></div><button type="button" class="cerrar-hoja" data-cierra aria-label="Cerrar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
+      <h2 id="seccion-titulo">Nueva sección</h2>
+      <p class="suave pequeno">Separa tu dinero, por ejemplo el de tu negocio. Cada sección tiene sus propios movimientos, metas y pagos; tu racha es una sola.</p>
+      <label class="etiqueta">Nombre
+        <input type="text" name="nombre" class="campo" placeholder="Mi empresa" maxlength="24" required>
+      </label>
+      <div class="etiqueta">Ícono</div>
+      <div id="seccion-iconos" class="chips iconos-seccion" role="radiogroup" aria-label="Ícono"></div>
+      <button type="submit" id="seccion-guardar" class="boton-grande">Crear sección</button>
+      <button type="button" id="seccion-borrar" class="boton-texto" hidden><i class="ti ti-trash" aria-hidden="true"></i> Borrar esta sección</button>
+    </form>
+  </dialog>
+
   <!-- Hoja: subir lo que ya había en este teléfono al entrar por primera vez -->
   <dialog id="hoja-subir" class="hoja">
     <form id="form-subir">
@@ -420,6 +439,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=28"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>

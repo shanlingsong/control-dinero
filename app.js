@@ -62,6 +62,19 @@ const datos = {
 let pendientes = leer(CLAVE_PENDIENTES, []); // cambios que aún no se suben a la nube
 let perfil = leer(CLAVE_PERFIL, { nombre: '', foto: '' });
 
+// ---------- Secciones: separar tu dinero (Personal, Mi empresa…) en la misma cuenta ----------
+// Cada movimiento, meta y pago guarda su "seccion". La racha es una sola para todas.
+const CLAVE_SECCIONES = 'mi-dinero:secciones';
+const CLAVE_SECCION = 'mi-dinero:seccion';
+const SECCION_PERSONAL = { id: 'personal', nombre: 'Personal', icono: 'ti-user' };
+let secciones = leer(CLAVE_SECCIONES, [SECCION_PERSONAL]);
+if (!secciones.some((s) => s.id === 'personal')) secciones.unshift(SECCION_PERSONAL);
+let seccionActual = leer(CLAVE_SECCION, 'personal');
+if (!secciones.some((s) => s.id === seccionActual)) seccionActual = 'personal';
+
+// Lo que se ve en pantalla: solo lo de la sección actual.
+const deSeccion = (nombre) => datos[nombre].filter((x) => x.seccion === seccionActual);
+
 // ---------- Guardar y cargar en el teléfono ----------
 
 function leer(clave, porDefecto) {
@@ -100,6 +113,7 @@ function normalizar(nombre, x) {
   o.creado = Number.isFinite(creado) && creado > 0 ? creado : Date.now();
   const texto = (valor) => (valor == null ? '' : String(valor));
   if (nombre === 'dias') return ES_FECHA.test(o.id) ? o : null;
+  o.seccion = texto(o.seccion) || 'personal'; // lo de antes de que existieran las secciones es "Personal"
   if (nombre === 'metas') {
     o.objetivo = Number(o.objetivo);
     o.nombre = texto(o.nombre);
@@ -205,10 +219,10 @@ const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE
 
 // Columnas de cada tabla; el resto de un objeto no se manda.
 const COLUMNAS = {
-  movimientos: ['id', 'tipo', 'monto', 'categoria', 'nota', 'fecha', 'creado', 'meta'],
-  metas: ['id', 'nombre', 'objetivo', 'creado'],
+  movimientos: ['id', 'tipo', 'monto', 'categoria', 'nota', 'fecha', 'creado', 'meta', 'seccion'],
+  metas: ['id', 'nombre', 'objetivo', 'creado', 'seccion'],
   dias: ['id', 'creado'],
-  pendientes: ['id', 'tipo', 'persona', 'monto', 'fecha', 'nota', 'creado'],
+  pendientes: ['id', 'tipo', 'persona', 'monto', 'fecha', 'nota', 'creado', 'seccion'],
 };
 const COLUMNAS_NUMERO = ['monto', 'objetivo', 'creado'];
 
@@ -250,7 +264,9 @@ let esperandoDecision = false;
 
 // Un error de internet se reintenta después; cualquier otro (dato que la nube rechaza)
 // se aparta para que no atore la fila para siempre.
-const esErrorDeRed = (error) => !navigator.onLine || /fetch|network|Load failed|timeout/i.test(String(error?.message || error));
+// "column … does not exist" también se reintenta: pasa si la app se actualizó antes que la base de datos.
+const esErrorDeRed = (error) =>
+  !navigator.onLine || /fetch|network|Load failed|timeout|column|schema cache/i.test(String(error?.message || error));
 
 async function sincronizar() {
   if (!cuenta || !db) return;
@@ -335,6 +351,8 @@ function mostrarEstado(icono, texto, problema = false) {
 // ---------- Agregar y borrar ----------
 
 function agregar(nombre, objeto) {
+  // Lo nuevo se guarda en la sección que estás viendo (la racha es de todas, no lleva sección).
+  if (nombre !== 'dias' && !objeto.seccion) objeto.seccion = seccionActual;
   datos[nombre].push(objeto);
   guardarColeccion(nombre);
   encolar({ accion: 'agregar', coleccion: nombre, objeto });
@@ -424,7 +442,7 @@ function compararConMesPasado() {
   const [a, m] = hoyTexto.split('-').map(Number);
   const inicioPasado = fechaLocal(new Date(a, m - 2, 1));
   const finPasado = fechaLocal(new Date(a, m - 2, Math.min(dia, new Date(a, m - 1, 0).getDate())));
-  const gastos = (desde, hasta) => sumar(datos.movimientos.filter((x) => x.tipo === 'gasto' && x.fecha >= desde && x.fecha <= hasta));
+  const gastos = (desde, hasta) => sumar(deSeccion('movimientos').filter((x) => x.tipo === 'gasto' && x.fecha >= desde && x.fecha <= hasta));
   const ahora = gastos(hoyTexto.slice(0, 8) + '01', hoyTexto);
   const antes = gastos(inicioPasado, finPasado);
   const mesPasado = new Date(a, m - 2, 1).toLocaleDateString('es-MX', { month: 'long' });
@@ -434,6 +452,7 @@ function compararConMesPasado() {
 // ---------- Dibujar la pantalla ----------
 
 function dibujar() {
+  dibujarSecciones();
   dibujarEncabezado();
   dibujarSaldo();
   dibujarGrafica(false);
@@ -453,9 +472,11 @@ function dibujarEncabezado() {
 }
 
 function dibujarSaldo() {
-  const total = datos.movimientos.reduce((t, m) => t + efecto(m), 0);
-  if (!grafica.tocando) contar($('#saldo'), total);
-  if (!grafica.tocando) dibujarComparacion();
+  const total = deSeccion('movimientos').reduce((t, m) => t + efecto(m), 0);
+  if (grafica.tocando) return;
+  $('#saldo-etiqueta').textContent = seccionActual === 'personal' ? 'Tu dinero' : `Dinero de ${seccionVista().nombre}`;
+  contar($('#saldo'), total);
+  dibujarComparacion();
 }
 
 function dibujarComparacion() {
@@ -500,7 +521,7 @@ function datosGrafica() {
   const indice = new Map(lista.map((d, i) => [d.fecha, i]));
 
   let saldo = 0;
-  for (const m of datos.movimientos) {
+  for (const m of deSeccion('movimientos')) {
     if (m.fecha < desde) {
       saldo += efecto(m);
       continue;
@@ -674,7 +695,7 @@ function soltarGrafica() {
     if (el) el.style.display = 'none';
   }
   dibujarGrafica(false);
-  $('#saldo-etiqueta').textContent = 'Tu dinero';
+  $('#saldo-etiqueta').textContent = seccionActual === 'personal' ? 'Tu dinero' : `Dinero de ${seccionVista().nombre}`;
   const total = Number($('#saldo').dataset.valor || 0);
   $('#saldo').textContent = dinero.format(total);
   dibujarComparacion();
@@ -687,7 +708,7 @@ const RECIENTES = 4;
 
 function movimientosDelMes() {
   const mes = $('#mes').value; // "AAAA-MM"
-  return datos.movimientos
+  return deSeccion('movimientos')
     .filter((m) => m.fecha.startsWith(mes))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.creado - a.creado);
 }
@@ -808,7 +829,7 @@ function abrirBusqueda() {
 
 function dibujarBusqueda() {
   const palabras = sinAcentos(busqueda.texto).split(/\s+/).filter(Boolean);
-  const encontrados = datos.movimientos
+  const encontrados = deSeccion('movimientos')
     .filter((m) => busqueda.filtro === 'todos' || m.tipo === busqueda.filtro)
     .filter((m) => {
       const texto = textoBuscable(m);
@@ -1002,22 +1023,22 @@ function vacio(texto) {
 // ---------- Metas ----------
 
 function dibujarMetas() {
-  const total = datos.movimientos.reduce((t, m) => t + efecto(m), 0);
+  const total = deSeccion('movimientos').reduce((t, m) => t + efecto(m), 0);
   // Solo cuenta lo apartado en metas que todavía existen: si borras una meta,
   // lo que habías apartado para ella regresa a "Disponible".
   const metasVivas = new Set(datos.metas.map((meta) => meta.id));
-  const enMetas = sumar(datos.movimientos.filter((m) => m.tipo === 'ahorro' && metasVivas.has(m.meta)));
+  const enMetas = sumar(deSeccion('movimientos').filter((m) => m.tipo === 'ahorro' && metasVivas.has(m.meta)));
   contar($('#total-disponible'), total - enMetas, 700);
   contar($('#total-metas'), enMetas, 700);
-  $('#pista-saldo').hidden = datos.movimientos.some((m) => m.categoria === SALDO_INICIAL);
+  $('#pista-saldo').hidden = deSeccion('movimientos').some((m) => m.categoria === SALDO_INICIAL);
 
   const ul = $('#metas');
   ul.replaceChildren();
-  if (datos.metas.length === 0) {
+  if (deSeccion('metas').length === 0) {
     ul.append(vacio('Crea una meta para empezar a ahorrar con un objetivo.'));
     return;
   }
-  for (const meta of datos.metas) {
+  for (const meta of deSeccion('metas')) {
     const ahorrado = ahorradoEn(meta);
     const avance = Math.min(100, Math.round((ahorrado / meta.objetivo) * 100));
     const cumplida = ahorrado >= meta.objetivo;
@@ -1133,7 +1154,7 @@ function dibujarCalendario(activos) {
 // ---------- Pagos pendientes ----------
 
 function dibujarPagos() {
-  const ordenados = [...datos.pendientes].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const ordenados = deSeccion('pendientes').sort((a, b) => a.fecha.localeCompare(b.fecha));
   const debo = ordenados.filter((p) => p.tipo === 'debo');
   const meDeben = ordenados.filter((p) => p.tipo === 'me-deben');
 
@@ -1354,7 +1375,7 @@ function pintarCategorias() {
   const contenedor = $('#chips-categoria');
   const opciones =
     tipo === 'ahorro'
-      ? datos.metas.map((meta) => ({ valor: meta.id, texto: meta.nombre, icono: 'ti-target' }))
+      ? deSeccion('metas').map((meta) => ({ valor: meta.id, texto: meta.nombre, icono: 'ti-target' }))
       : categoriasDe(tipo).map((c) => ({ valor: c, texto: c, icono: ICONOS[c] || 'ti-tag' }));
   if (tipo !== 'ahorro') opciones.push({ valor: NUEVA_CATEGORIA, texto: 'Otra', icono: 'ti-pencil' });
 
@@ -1376,7 +1397,7 @@ function pintarCategorias() {
       return chip;
     })
   );
-  if (tipo === 'ahorro' && datos.metas.length === 0) contenedor.append(vacio('Primero crea una meta en la sección Metas.'));
+  if (tipo === 'ahorro' && deSeccion('metas').length === 0) contenedor.append(vacio('Primero crea una meta en la sección Metas.'));
 
   const caja = $('#nueva-categoria');
   caja.hidden = formulario.categoria !== NUEVA_CATEGORIA;
@@ -1579,6 +1600,147 @@ $('#form-pago').addEventListener('submit', (evento) => {
   avisar('Anotado.');
 });
 
+// ---------- Secciones de dinero (Personal, Mi empresa…) ----------
+
+const ICONOS_SECCION = ['ti-user', 'ti-building-store', 'ti-briefcase', 'ti-pepper', 'ti-home', 'ti-school', 'ti-heart', 'ti-car'];
+let seccionEditando = null; // null = creando una nueva
+
+const seccionVista = () => secciones.find((s) => s.id === seccionActual) || SECCION_PERSONAL;
+
+function guardarSecciones() {
+  escribir(CLAVE_SECCIONES, secciones);
+  // Con cuenta, la lista también se guarda en tu cuenta para que salga en todos tus dispositivos.
+  if (cuenta && db) {
+    db.auth.updateUser({ data: { secciones } }).then(({ data }) => {
+      if (data?.user) cuenta = data.user;
+    });
+  }
+}
+
+// Junta las secciones guardadas en la cuenta con las de este teléfono (al entrar).
+async function seccionesDeLaCuenta() {
+  // getUser() pregunta a la nube, así salen las secciones creadas en otro dispositivo hace poco.
+  const { data } = await db.auth.getUser().catch(() => ({ data: null }));
+  if (!cuenta) return;
+  if (data?.user) cuenta = data.user;
+  const enLaCuenta = cuenta.user_metadata?.secciones;
+  if (!Array.isArray(enLaCuenta)) {
+    if (secciones.length > 1) guardarSecciones();
+    return;
+  }
+  // Las de la cuenta mandan; las que solo estaban aquí (o "Otra sección") se quedan si la cuenta no las tiene.
+  const porId = new Map(secciones.filter((s) => s.nombre !== 'Otra sección').map((s) => [s.id, s]));
+  for (const s of enLaCuenta) if (s?.id) porId.set(s.id, s);
+  secciones = [...porId.values()];
+  escribir(CLAVE_SECCIONES, secciones);
+  if (secciones.length > enLaCuenta.length) guardarSecciones();
+  dibujar();
+}
+
+function dibujarSecciones() {
+  // Si llegó algo de una sección que este teléfono no conoce (por ejemplo, creada en otro), se agrega.
+  for (const nombre of ['movimientos', 'metas', 'pendientes']) {
+    for (const x of datos[nombre]) {
+      if (!secciones.some((s) => s.id === x.seccion)) secciones.push({ id: x.seccion, nombre: 'Otra sección', icono: 'ti-folder' });
+    }
+  }
+  if (!secciones.some((s) => s.id === seccionActual)) seccionActual = 'personal';
+
+  const fila = $('#secciones');
+  fila.replaceChildren();
+  for (const s of secciones) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'chip-seccion' + (s.id === seccionActual ? ' activo' : '');
+    boton.setAttribute('aria-pressed', s.id === seccionActual);
+    boton.innerHTML = `<i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i><span></span>`;
+    boton.querySelector('span').textContent = s.nombre;
+    // Tocar la sección en la que ya estás la abre para cambiarle el nombre o el ícono.
+    boton.title = s.id === seccionActual ? 'Toca otra vez para editarla' : '';
+    boton.addEventListener('click', () => (s.id === seccionActual ? abrirSeccion(s) : cambiarSeccion(s.id)));
+    fila.append(boton);
+  }
+  const nueva = document.createElement('button');
+  nueva.type = 'button';
+  nueva.className = 'chip-seccion nueva';
+  nueva.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i><span>Nueva</span>';
+  nueva.addEventListener('click', () => abrirSeccion(null));
+  fila.append(nueva);
+}
+
+function cambiarSeccion(id) {
+  seccionActual = id;
+  escribir(CLAVE_SECCION, id);
+  vibrar();
+  $('#saldo').dataset.valor = 0; // que el saldo cuente desde cero, como al abrir la app
+  dibujar();
+  dibujarGrafica(true);
+}
+
+function abrirSeccion(seccion) {
+  seccionEditando = seccion;
+  const form = $('#form-seccion');
+  form.reset();
+  form.nombre.value = seccion?.nombre || '';
+  $('#seccion-titulo').textContent = seccion ? 'Editar sección' : 'Nueva sección';
+  $('#seccion-guardar').textContent = seccion ? 'Guardar' : 'Crear sección';
+  $('#seccion-borrar').hidden = !seccion || seccion.id === 'personal';
+  pintarIconosSeccion(seccion?.icono || 'ti-building-store');
+  abrirHoja($('#hoja-seccion'));
+}
+
+function pintarIconosSeccion(elegido) {
+  const contenedor = $('#seccion-iconos');
+  contenedor.replaceChildren();
+  for (const icono of ICONOS_SECCION) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'chip icono-chip' + (icono === elegido ? ' activo' : '');
+    boton.dataset.icono = icono;
+    boton.setAttribute('aria-checked', icono === elegido);
+    boton.setAttribute('role', 'radio');
+    boton.innerHTML = `<i class="ti ${icono}" aria-hidden="true"></i>`;
+    boton.addEventListener('click', () => pintarIconosSeccion(icono));
+    contenedor.append(boton);
+  }
+}
+
+$('#form-seccion').addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const nombre = evento.target.nombre.value.trim();
+  if (!nombre) return;
+  const icono = $('#seccion-iconos .activo')?.dataset.icono || 'ti-folder';
+  if (seccionEditando) {
+    Object.assign(secciones.find((s) => s.id === seccionEditando.id), { nombre, icono });
+    guardarSecciones();
+    dibujar();
+    avisar('Sección actualizada');
+  } else {
+    const nueva = { id: 's' + Date.now().toString(36), nombre, icono };
+    secciones.push(nueva);
+    guardarSecciones();
+    cambiarSeccion(nueva.id);
+    avisar(`Listo: ahora estás en ${nombre}. Todo lo que anotes aquí queda separado.`);
+  }
+  cerrarHoja($('#hoja-seccion'));
+});
+
+// Solo se puede borrar una sección vacía, para no perder dinero registrado por accidente.
+$('#seccion-borrar').addEventListener('click', () => {
+  const id = seccionEditando?.id;
+  if (!id || id === 'personal') return;
+  const usados = ['movimientos', 'metas', 'pendientes'].reduce((t, n) => t + datos[n].filter((x) => x.seccion === id).length, 0);
+  if (usados > 0) {
+    avisar(`No se puede borrar: tiene ${usados} ${usados === 1 ? 'registro' : 'registros'}. Bórralos primero.`);
+    return;
+  }
+  secciones = secciones.filter((s) => s.id !== id);
+  guardarSecciones();
+  cerrarHoja($('#hoja-seccion'));
+  cambiarSeccion('personal');
+  avisar('Sección borrada');
+});
+
 // ---------- Secciones ----------
 
 function mostrarVista(nombre) {
@@ -1596,6 +1758,7 @@ function mostrarVista(nombre) {
     else boton.removeAttribute('aria-current');
   }
   $('#boton-agregar').hidden = nombre !== 'dinero';
+  $('#secciones').hidden = nombre === 'racha'; // la racha es una sola para todas las secciones
   window.scrollTo(0, 0);
   // Al entrar a una sección se repiten sus animaciones.
   if (nombre === 'detalle') {
@@ -1811,6 +1974,7 @@ function ponerCuenta(usuario) {
   }
   nombreDeLaCuenta();
   if (anterior === cuenta.id) return;
+  seccionesDeLaCuenta();
   return alEntrar();
 }
 
@@ -1877,6 +2041,11 @@ $('#cerrar-sesion').addEventListener('click', async () => {
   // Lo de esta cuenta se quita del teléfono; sigue guardado en la nube.
   borrarDatosLocales();
   escribir(CLAVE_DUENO, null);
+  // Las secciones también eran de esa cuenta.
+  secciones = [SECCION_PERSONAL];
+  seccionActual = 'personal';
+  escribir(CLAVE_SECCIONES, secciones);
+  escribir(CLAVE_SECCION, seccionActual);
   ponerCuenta(null);
   dibujar();
   cerrarHoja($('#hoja-ajustes'));

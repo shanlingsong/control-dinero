@@ -846,6 +846,38 @@ code { font-size: 0.8em; background: var(--fondo); padding: 1px 5px; border-radi
 }
 #buscar-filtros { flex-wrap: wrap; }
 #vista-buscar { max-width: 720px; }
+/* ---------- Secciones de dinero ---------- */
+.secciones {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 -16px 14px;
+  padding: 2px 16px;
+  scrollbar-width: none;
+}
+.secciones::-webkit-scrollbar { display: none; }
+.secciones[hidden] { display: none; }
+.chip-seccion {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--linea);
+  background: var(--tarjeta);
+  color: var(--suave);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: background .2s, color .2s, border-color .2s, transform .12s;
+}
+.chip-seccion .ti { font-size: 1.05rem; }
+.chip-seccion:active { transform: scale(.95); }
+.chip-seccion.activo { background: rgb(255 179 71 / 0.14); border-color: var(--acento-2); color: var(--texto); }
+.chip-seccion.activo .ti { color: var(--acento-2); }
+.chip-seccion.nueva { border-style: dashed; background: transparent; }
+.iconos-seccion { flex-wrap: wrap; }
+.icono-chip { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; font-size: 1.3rem; }
 /* ---------- Partes que solo existen en la compu ---------- */
 .columna { display: contents; } /* en el teléfono es como si no existiera */
 .marca-lateral, .barra-secciones .agregar-lateral { display: none; }

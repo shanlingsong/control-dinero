@@ -14,6 +14,7 @@ create table if not exists public.movimientos (
   fecha     date   not null,
   creado    bigint not null,
   meta      text   not null default '',
+  seccion   text   not null default 'personal', -- Personal, Mi empresa… (ver secciones.sql)
   primary key (user_id, id)
 );
 
@@ -24,6 +25,7 @@ create table if not exists public.metas (
   nombre   text   not null,
   objetivo numeric(12, 2) not null check (objetivo > 0),
   creado   bigint not null,
+  seccion  text   not null default 'personal',
   primary key (user_id, id)
 );
 
@@ -45,6 +47,7 @@ create table if not exists public.pendientes (
   fecha   date   not null,
   nota    text   not null default '',
   creado  bigint not null,
+  seccion text   not null default 'personal',
   primary key (user_id, id)
 );
 
