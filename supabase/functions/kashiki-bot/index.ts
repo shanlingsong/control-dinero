@@ -1,17 +1,21 @@
-// Kashiki Bot: los avisos de Telegram de cada usuario.
-// Una sola Edge Function que hace 3 trabajos:
+// Kashiki Bot: los avisos de cada usuario, por Telegram y por notificación en el teléfono.
+// Una sola Edge Function que hace 4 trabajos:
 //   1. La app le pide un código para conectar Telegram (con la sesión del usuario).
 //   2. Telegram le avisa cuando alguien le escribe al bot (el /start con el código conecta la cuenta).
-//   3. pg_cron la llama cada noche (recordatorio) y cada domingo (resumen) para TODOS los usuarios conectados.
+//   3. La app le manda la "dirección" de un teléfono que activó las notificaciones.
+//   4. pg_cron la llama cada noche (recordatorio) y cada domingo (resumen) para TODOS los usuarios
+//      con Telegram conectado o con notificaciones activadas.
 //
 // Secretos que necesita (Edge Functions → Secrets):
 //   TELEGRAM_TOKEN  el token de tu bot (el mismo que tenías en Apps Script)
 //   BOT_SECRETO     una contraseña larga inventada; Telegram y pg_cron la mandan para demostrar que son ellos
+//   VAPID_PUBLICA / VAPID_PRIVADA  las llaves de las notificaciones (supabase/vapid.local.txt, no se sube a GitHub)
 // SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY ya vienen puestos solos.
 //
 // Importante: en los detalles de la función hay que APAGAR "Verify JWT", porque Telegram y pg_cron no tienen sesión.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import webpush from 'npm:web-push@3.6.7';
 
 const ZONA = 'America/Mexico_City';
 const URL_APP = 'https://shanlingsong.github.io/control-dinero/';
@@ -22,6 +26,10 @@ const MINUTOS_CODIGO = 30;
 const secreto = (nombre: string) => Deno.env.get(nombre) ?? Deno.env.get(nombre.replace('_', '-')) ?? '';
 const TOKEN = secreto('TELEGRAM_TOKEN');
 const SECRETO = secreto('BOT_SECRETO');
+const VAPID_PUBLICA = secreto('VAPID_PUBLICA');
+const VAPID_PRIVADA = secreto('VAPID_PRIVADA');
+const hayNotificaciones = VAPID_PUBLICA !== '' && VAPID_PRIVADA !== '';
+if (hayNotificaciones) webpush.setVapidDetails('mailto:avisos@kashiki.app', VAPID_PUBLICA, VAPID_PRIVADA);
 // db usa la llave de servicio: se salta las reglas RLS, por eso cada consulta filtra por user_id a mano.
 const db = createClient(Deno.env.get('SUPABASE_URL')!, llaveDeServicio());
 
@@ -59,8 +67,8 @@ Deno.serve(async (req) => {
       await atenderTelegram(cuerpo);
       return json({ ok: true });
     }
-    if (esConfiable && cuerpo.tarea === 'diario') return json(await paraTodos(recordatorioDiario));
-    if (esConfiable && cuerpo.tarea === 'semanal') return json(await paraTodos(resumenSemanal));
+    if (esConfiable && cuerpo.tarea === 'diario') return json(await paraTodos('diario'));
+    if (esConfiable && cuerpo.tarea === 'semanal') return json(await paraTodos('semanal'));
     if (esConfiable && cuerpo.tarea === 'configurar') return json(await configurar());
 
     // Lo demás lo pide la app: tiene que venir con la sesión del usuario.
@@ -71,6 +79,15 @@ Deno.serve(async (req) => {
     if (cuerpo.accion === 'desconectar') {
       await db.from('telegram').delete().eq('user_id', usuario);
       return json({ conectado: false });
+    }
+    if (cuerpo.accion === 'push-guardar') return json(await guardarSuscripcion(usuario, cuerpo.suscripcion));
+    if (cuerpo.accion === 'push-quitar') {
+      await db.from('notificaciones').delete().eq('user_id', usuario).eq('endpoint', String(cuerpo.endpoint ?? ''));
+      return json({ ok: true });
+    }
+    if (cuerpo.accion === 'push-probar') {
+      const enviados = await mandarPush(usuario, { titulo: '🔔 ¡Listo!', cuerpo: 'Así te van a llegar los avisos de Kashiki.' });
+      return json({ enviados });
     }
     return json({ error: 'No entendí qué quieres' }, 400);
   } catch (error) {
@@ -199,24 +216,95 @@ function enviar(chatId: number, texto: string) {
   return telegram('sendMessage', { chat_id: chatId, text: texto, parse_mode: 'HTML', disable_web_page_preview: true });
 }
 
-// Corre una tarea para cada usuario con Telegram conectado. Si alguien bloqueó al bot, lo desconecta.
-async function paraTodos(tarea: (datos: Datos, hoy: string) => string | null) {
+// Corre el aviso de la noche o el resumen del domingo para cada usuario que tenga Telegram conectado
+// y/o notificaciones activadas. Si alguien bloqueó al bot, lo desconecta.
+async function paraTodos(tarea: 'diario' | 'semanal') {
   const { data: conectados, error } = await db.from('telegram').select('user_id, chat_id').not('chat_id', 'is', null);
   if (error) throw error;
+  const { data: suscritos } = await db.from('notificaciones').select('user_id');
+  const chats = new Map((conectados ?? []).map((c) => [c.user_id, c.chat_id]));
+  const usuarios = new Set([...chats.keys(), ...(suscritos ?? []).map((s) => s.user_id)]);
+
   const hoy = fechaDe(Date.now());
-  let enviados = 0;
-  for (const { user_id, chat_id } of conectados ?? []) {
+  let telegramEnviados = 0;
+  let pushEnviados = 0;
+  for (const usuario of usuarios) {
     try {
-      const texto = tarea(await leerDatos(user_id), hoy);
+      const datos = await leerDatos(usuario);
+      const texto = tarea === 'diario' ? recordatorioDiario(datos, hoy) : resumenSemanal(datos, hoy);
       if (!texto) continue;
-      const respuesta = await enviar(chat_id, texto);
-      if (respuesta.ok) enviados++;
-      else if (respuesta.error_code === 403) await db.from('telegram').update({ chat_id: null }).eq('user_id', user_id);
+      const chatId = chats.get(usuario);
+      if (chatId) {
+        const respuesta = await enviar(chatId, texto);
+        if (respuesta.ok) telegramEnviados++;
+        else if (respuesta.error_code === 403) await db.from('telegram').update({ chat_id: null }).eq('user_id', usuario);
+      }
+      pushEnviados += await mandarPush(usuario, tarea === 'diario' ? avisoCorto(texto) : resumenCorto(datos, hoy));
     } catch (e) {
-      console.error(user_id, e);
+      console.error(usuario, e);
     }
   }
-  return { usuarios: conectados?.length ?? 0, enviados };
+  return { usuarios: usuarios.size, telegramEnviados, pushEnviados };
+}
+
+// ---------- Notificaciones en el teléfono (Web Push) ----------
+
+type AvisoPush = { titulo: string; cuerpo: string };
+
+async function guardarSuscripcion(usuario: string, s: any) {
+  if (!s?.endpoint || !s?.keys?.p256dh || !s?.keys?.auth) return { error: 'Suscripción incompleta' };
+  const { error } = await db
+    .from('notificaciones')
+    .upsert({ endpoint: s.endpoint, user_id: usuario, p256dh: s.keys.p256dh, auth: s.keys.auth }, { onConflict: 'endpoint' });
+  if (error) throw error;
+  return { ok: true };
+}
+
+// Manda un aviso a todos los teléfonos donde el usuario activó las notificaciones.
+// Si un teléfono ya no existe (desinstaló la app, borró datos…), se quita de la lista.
+async function mandarPush(usuario: string, aviso: AvisoPush) {
+  if (!hayNotificaciones) return 0;
+  const { data: telefonos } = await db.from('notificaciones').select('endpoint, p256dh, auth').eq('user_id', usuario);
+  let enviados = 0;
+  for (const t of telefonos ?? []) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } },
+        JSON.stringify({ titulo: aviso.titulo, cuerpo: aviso.cuerpo, url: URL_APP }),
+        { TTL: 60 * 60 * 12 }
+      );
+      enviados++;
+    } catch (e: any) {
+      if (e?.statusCode === 404 || e?.statusCode === 410) await db.from('notificaciones').delete().eq('endpoint', t.endpoint);
+      else console.error('push', e?.statusCode, e?.body ?? e);
+    }
+  }
+  return enviados;
+}
+
+// El aviso de Telegram pero en texto simple para la notificación (sin formato ni link).
+function avisoCorto(html: string): AvisoPush {
+  const texto = html
+    .replace(URL_APP, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+  return { titulo: 'Kashiki', cuerpo: texto };
+}
+
+// El resumen del domingo en corto: una línea por sección.
+function resumenCorto(datos: Datos, hoy: string): AvisoPush {
+  const inicio = sumarDias(hoy, -6);
+  const lineas = porSeccion(datos).map((g) => {
+    const semana = g.movimientos.filter((m) => m.fecha >= inicio && m.fecha <= hoy);
+    const generado = sumar(semana.filter((m) => m.tipo === 'ingreso' && m.categoria !== SALDO_INICIAL));
+    const gastado = sumar(semana.filter((m) => m.tipo === 'gasto'));
+    return `${EMOJIS[g.seccion.icono ?? ''] ?? '📁'} ${g.seccion.nombre}: +${pesos(generado)} · −${pesos(gastado)}`;
+  });
+  return { titulo: '📊 Tu semana en Kashiki', cuerpo: [...lineas, 'Toca para ver el detalle'].join('\n') };
 }
 
 // ---------- Datos de un usuario ----------

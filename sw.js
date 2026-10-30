@@ -1,7 +1,7 @@
 // Service worker: guarda una copia de la app para que abra aunque no haya internet.
 // Primero intenta descargar la versión más nueva; si no hay conexión, usa la copia guardada.
 
-const CACHE = 'kashiki-v32';
+const CACHE = 'kashiki-v33';
 const ARCHIVOS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'marca/kashiki.png'];
 // Con señal muy mala, la red puede tardar muchísimo en contestar. Si pasa este tiempo y ya hay
 // una copia guardada de ESA MISMA versión, se usa la copia para que la app no se quede "trabada".
@@ -55,6 +55,37 @@ self.addEventListener('fetch', (evento) => {
           clearTimeout(reloj);
           if (!usar(await caches.match(request, { ignoreSearch: true }))) usar(Response.error());
         });
+    })
+  );
+});
+
+// ---------- Notificaciones ----------
+// Llegan aunque Kashiki esté cerrada: el teléfono despierta este archivo y él muestra el aviso.
+self.addEventListener('push', (evento) => {
+  let aviso = { titulo: 'Kashiki', cuerpo: '', url: './' };
+  try {
+    aviso = { ...aviso, ...evento.data.json() };
+  } catch {
+    if (evento.data) aviso.cuerpo = evento.data.text();
+  }
+  evento.waitUntil(
+    self.registration.showNotification(aviso.titulo, {
+      body: aviso.cuerpo,
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      data: { url: aviso.url },
+    })
+  );
+});
+
+// Al tocar la notificación se abre Kashiki (o se trae al frente si ya estaba abierta).
+self.addEventListener('notificationclick', (evento) => {
+  evento.notification.close();
+  const url = evento.notification.data?.url || './';
+  evento.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ventanas) => {
+      const abierta = ventanas.find((v) => v.url.startsWith(self.registration.scope));
+      return abierta ? abierta.focus() : self.clients.openWindow(url);
     })
   );
 });

@@ -2238,8 +2238,8 @@ $('#traer-sheets').addEventListener('click', async () => {
 // ---------- Avisos por Telegram ----------
 // La Edge Function "kashiki-bot" (supabase/functions) guarda qué chat de Telegram es de cada cuenta.
 
-const pedirAlBot = async (accion) => {
-  const { data, error } = await db.functions.invoke('kashiki-bot-', { body: { accion } });
+const pedirAlBot = async (accion, extra = {}) => {
+  const { data, error } = await db.functions.invoke('kashiki-bot-', { body: { accion, ...extra } });
   if (error) throw error;
   return data;
 };
@@ -2330,6 +2330,104 @@ document.addEventListener('visibilitychange', () => {
   revisarTelegram();
 });
 
+// ---------- Notificaciones en el teléfono ----------
+// El teléfono le da a Kashiki una "dirección" para mandarle avisos; se guarda en tu cuenta
+// y el bot (supabase/functions) manda ahí los mismos avisos que por Telegram.
+
+// Llave pública de Kashiki para las notificaciones (la privada está guardada en Supabase).
+const VAPID_PUBLICA = 'BE_Av1BLFGYly-sl7Btb33ny0jypW5kvPov_mCYtkkf1V3UoE7Iz6EzEfaXCr1KoiYZ7Ap55W_emhDXY1QQd0ZM';
+
+const soportaNotificaciones = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+// En iPhone solo funcionan con Kashiki instalada en la pantalla de inicio.
+const iPhoneSinInstalar = () =>
+  /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone && !matchMedia('(display-mode: standalone)').matches;
+
+function bytesDeLlave(base64) {
+  const relleno = '='.repeat((4 - (base64.length % 4)) % 4);
+  const texto = atob((base64 + relleno).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(texto, (c) => c.charCodeAt(0));
+}
+
+function pintarNotificaciones(texto, activas, sePuede = true) {
+  $('#notif-estado').textContent = texto;
+  $('#notif-activar').hidden = activas || !sePuede;
+  $('#notif-activas').hidden = !activas;
+}
+
+async function revisarNotificaciones() {
+  if (!cuenta) return;
+  if (iPhoneSinInstalar()) {
+    pintarNotificaciones('En iPhone primero agrega Kashiki a tu pantalla de inicio: Compartir → "Agregar a inicio".', false, false);
+    return;
+  }
+  if (!soportaNotificaciones()) {
+    pintarNotificaciones('Este navegador no puede recibir notificaciones.', false, false);
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    pintarNotificaciones('Las notificaciones están bloqueadas. Actívalas en los ajustes del teléfono para Kashiki.', false, false);
+    return;
+  }
+  const registro = await navigator.serviceWorker.ready;
+  const suscripcion = await registro.pushManager.getSubscription();
+  if (suscripcion && Notification.permission === 'granted') {
+    pintarNotificaciones('Notificaciones activadas en este teléfono', true);
+    // Por si cambió la dirección o se activaron antes de iniciar sesión: se vuelve a guardar.
+    pedirAlBot('push-guardar', { suscripcion: suscripcion.toJSON() }).catch(() => {});
+  } else {
+    pintarNotificaciones('Recibe tus avisos como notificación en este teléfono', false);
+  }
+}
+
+$('#notif-activar').addEventListener('click', async () => {
+  const boton = $('#notif-activar');
+  boton.disabled = true;
+  try {
+    // El permiso se pide justo al tocar el botón (el iPhone solo lo permite así).
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') {
+      await revisarNotificaciones();
+      if (permiso === 'default') avisar('No se activaron. Puedes intentarlo otra vez cuando quieras.');
+      return;
+    }
+    const registro = await navigator.serviceWorker.ready;
+    const suscripcion =
+      (await registro.pushManager.getSubscription()) ||
+      (await registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytesDeLlave(VAPID_PUBLICA) }));
+    await pedirAlBot('push-guardar', { suscripcion: suscripcion.toJSON() });
+    pintarNotificaciones('Notificaciones activadas en este teléfono', true);
+    avisar('Listo: te llegarán tus avisos aquí. Toca "Probar" para ver cómo se ven.');
+  } catch (error) {
+    avisar('No se pudieron activar: ' + traducirError(error));
+  } finally {
+    boton.disabled = false;
+  }
+});
+
+$('#notif-probar').addEventListener('click', async () => {
+  try {
+    const { enviados } = await pedirAlBot('push-probar');
+    if (!enviados) avisar('No se pudo mandar la prueba. Desactiva y vuelve a activar las notificaciones.');
+  } catch (error) {
+    avisar('No se pudo: ' + traducirError(error));
+  }
+});
+
+$('#notif-quitar').addEventListener('click', async () => {
+  try {
+    const registro = await navigator.serviceWorker.ready;
+    const suscripcion = await registro.pushManager.getSubscription();
+    if (suscripcion) {
+      await pedirAlBot('push-quitar', { endpoint: suscripcion.endpoint }).catch(() => {});
+      await suscripcion.unsubscribe();
+    }
+    pintarNotificaciones('Recibe tus avisos como notificación en este teléfono', false);
+    avisar('Listo, ya no te llegarán notificaciones en este teléfono.');
+  } catch (error) {
+    avisar('No se pudo: ' + traducirError(error));
+  }
+});
+
 async function iniciarCuenta() {
   const { data } = await db.auth.getSession();
   db.auth.onAuthStateChange((evento, sesion) => {
@@ -2347,6 +2445,7 @@ function abrirAjustes() {
   dibujarEncabezado();
   abrirHoja($('#hoja-ajustes'));
   revisarTelegram();
+  revisarNotificaciones().catch(() => {});
 }
 $('#abrir-ajustes').addEventListener('click', abrirAjustes);
 $('#avatar').addEventListener('click', abrirAjustes);

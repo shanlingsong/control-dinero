@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=32">
+  <link rel="stylesheet" href="styles.css?v=33">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -373,6 +373,14 @@
       <div id="cuenta-con-sesion" class="cuenta" hidden>
         <p class="pequeno"><i class="ti ti-user-circle" aria-hidden="true"></i> <span id="cuenta-correo"></span></p>
         <button type="button" id="traer-sheets" class="boton-secundario" hidden><i class="ti ti-table-import" aria-hidden="true"></i> Traer mis datos de Google Sheets</button>
+        <div id="bloque-notificaciones" class="cuenta">
+          <p class="pequeno"><i class="ti ti-bell" aria-hidden="true"></i> <span id="notif-estado">Recibe tus avisos como notificación en este teléfono</span></p>
+          <button type="button" id="notif-activar" class="boton-secundario"><i class="ti ti-bell-ringing" aria-hidden="true"></i> Activar notificaciones</button>
+          <div id="notif-activas" class="botones-fila" hidden>
+            <button type="button" id="notif-probar" class="boton-secundario"><i class="ti ti-send" aria-hidden="true"></i> Probar</button>
+            <button type="button" id="notif-quitar" class="boton-secundario"><i class="ti ti-bell-off" aria-hidden="true"></i> Desactivar</button>
+          </div>
+        </div>
         <div id="bloque-telegram" class="cuenta">
           <p class="pequeno"><i class="ti ti-brand-telegram" aria-hidden="true"></i> <span id="telegram-estado">Recibe recordatorios y tu resumen semanal en Telegram</span></p>
           <a id="telegram-conectar" class="boton-secundario" target="_blank" rel="noopener"><i class="ti ti-brand-telegram" aria-hidden="true"></i> Conectar Telegram</a>
@@ -485,6 +493,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=32"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>
