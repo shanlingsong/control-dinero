@@ -2425,13 +2425,35 @@ function interpretarTexto(original) {
 // apareciendo en la cajita; al terminar de hablar se abre el formulario ya lleno.
 const Reconocedor = window.SpeechRecognition || window.webkitSpeechRecognition;
 const TEXTO_CAJITA = 'Escribe: gasté 80 en tacos ayer';
+const MAXIMO_DICTADO = 15000; // si sigue escuchando después de 15 s, se detiene solo
 let dictado = null;
+let limiteDictado;
+
+// Termina el dictado AL MOMENTO, sin esperar a que el teléfono conteste (la primera vez, mientras
+// pide el permiso, el teléfono puede tardar o no avisar nunca: así ya no se queda trabado).
+// "usarTexto" = si se escuchó algo, se abre el formulario con eso.
+function terminarDictado(usarTexto) {
+  if (!dictado) return;
+  const reconocedor = dictado;
+  dictado = null;
+  clearTimeout(limiteDictado);
+  reconocedor.onresult = reconocedor.onerror = reconocedor.onend = null;
+  try {
+    reconocedor.abort();
+  } catch {
+    // ya estaba detenido
+  }
+  const cajita = $('#form-ia');
+  cajita.classList.remove('escuchando');
+  cajita.texto.placeholder = TEXTO_CAJITA;
+  if (usarTexto && cajita.texto.value.trim()) cajita.requestSubmit();
+}
 
 $('#dictar').addEventListener('click', () => {
   const cajita = $('#form-ia');
   const campo = cajita.texto;
   if (dictado) {
-    dictado.stop(); // volver a picarle = ya terminé de hablar
+    terminarDictado(true); // volver a picarle = ya terminé de hablar
     return;
   }
   if (!Reconocedor) {
@@ -2440,16 +2462,13 @@ $('#dictar').addEventListener('click', () => {
     avisar('Para dictar, toca el micrófono del teclado.');
     return;
   }
-  let textoFinal = '';
   const reconocedor = new Reconocedor();
   dictado = reconocedor;
   reconocedor.lang = 'es-MX';
   reconocedor.interimResults = true;
   reconocedor.continuous = false;
   reconocedor.onresult = (e) => {
-    const texto = [...e.results].map((r) => r[0].transcript).join(' ').trim();
-    campo.value = texto;
-    if (e.results[e.results.length - 1].isFinal) textoFinal = texto;
+    campo.value = [...e.results].map((r) => r[0].transcript).join(' ').trim();
   };
   reconocedor.onerror = (e) => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
@@ -2459,26 +2478,24 @@ $('#dictar').addEventListener('click', () => {
     } else if (e.error !== 'aborted') {
       avisar('No se pudo usar el micrófono. Puedes escribirlo en la cajita.');
     }
+    terminarDictado(false);
   };
-  reconocedor.onend = () => {
-    dictado = null;
-    cajita.classList.remove('escuchando');
-    campo.placeholder = TEXTO_CAJITA;
-    // Si se entendió algo, se abre el formulario lleno; si solo hubo texto a medias, se usa ese.
-    if (textoFinal || campo.value.trim()) cajita.requestSubmit();
-  };
+  reconocedor.onend = () => terminarDictado(true);
   campo.value = '';
   campo.placeholder = 'Escuchando… di: gasté 80 en tacos';
   cajita.classList.add('escuchando');
-  vibrar();
+  limiteDictado = setTimeout(() => terminarDictado(true), MAXIMO_DICTADO);
   try {
     reconocedor.start();
   } catch {
-    dictado = null;
-    cajita.classList.remove('escuchando');
-    campo.placeholder = TEXTO_CAJITA;
+    terminarDictado(false);
     avisar('No se pudo usar el micrófono. Puedes escribirlo en la cajita.');
   }
+});
+
+// Si sales de la app mientras escucha, se detiene (para que al volver no siga abierto).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') terminarDictado(false);
 });
 
 $('#form-ia').addEventListener('submit', (evento) => {

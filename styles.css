@@ -1336,12 +1336,12 @@ body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
   transition: background .2s, color .2s, transform .12s;
 }
 .boton-dictar:active { transform: scale(.92); }
-/* Mientras escucha: rojo y latiendo */
-.ia.escuchando { border-color: rgb(255 90 82 / 0.6); }
-.ia.escuchando .boton-dictar { background: var(--negativo); color: #fff; animation: latido-mic 1.1s ease-in-out infinite; }
+/* Mientras escucha: brillo plateado que late (del mismo color que el resto de la app) */
+.ia.escuchando { border-color: rgb(var(--tinte) / 0.55); }
+.ia.escuchando .boton-dictar { background: var(--acento); color: var(--sobre-acento); animation: latido-mic 1.2s ease-in-out infinite; }
 @keyframes latido-mic {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(255 90 82 / 0.55); }
-  50% { box-shadow: 0 0 0 9px rgb(255 90 82 / 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--tinte) / 0.55); }
+  50% { box-shadow: 0 0 0 9px rgb(var(--tinte) / 0); }
 }
 /* Barra de abajo flotante (con nombres) y el + aparte */
 .barra-secciones {
