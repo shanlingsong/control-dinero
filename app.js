@@ -9,19 +9,37 @@ const CATEGORIAS = {
 // Ícono de cada categoría (https://tabler.io/icons). Las categorías propias usan una etiqueta.
 const ICONOS = {
   Comida: 'ti-tools-kitchen-2',
-  Transporte: 'ti-bus',
+  Transporte: 'ti-car',
   Casa: 'ti-home',
-  Servicios: 'ti-bulb',
-  Salud: 'ti-heart-rate-monitor',
-  'Diversión': 'ti-device-gamepad-2',
+  Servicios: 'ti-bolt',
+  Salud: 'ti-first-aid-kit',
+  'Diversión': 'ti-confetti',
   Ropa: 'ti-shirt',
-  Otros: 'ti-dots',
+  Otros: 'ti-category',
   'Pagos fijos': 'ti-repeat',
-  Sueldo: 'ti-cash',
-  Ventas: 'ti-briefcase',
+  Sueldo: 'ti-cash-banknote',
+  Ventas: 'ti-shopping-bag',
   Negocio: 'ti-building-store',
   Regalo: 'ti-gift',
   'Saldo inicial': 'ti-wallet',
+};
+// Color de cada categoría (como las monedas en las apps de cripto): la interfaz es de un solo tono
+// y el color aparece donde significa algo. Las categorías propias usan rojo (gasto) o verde (ingreso).
+const COLORES = {
+  Comida: '#FF9F43',
+  Transporte: '#4DA3FF',
+  Casa: '#A78BFA',
+  Servicios: '#FFD43B',
+  Salud: '#FF6B81',
+  'Diversión': '#22D3EE',
+  Ropa: '#FF6FB1',
+  Otros: '#9AA3B5',
+  'Pagos fijos': '#8B9CFF',
+  Sueldo: '#3DDC97',
+  Ventas: '#2FD3A0',
+  Negocio: '#F4A261',
+  Regalo: '#FF7AC6',
+  'Saldo inicial': '#7E8699',
 };
 // "Saldo inicial" es el dinero que ya tenías al empezar: cuenta para tu total, pero no como ingreso del mes.
 const SALDO_INICIAL = 'Saldo inicial';
@@ -1059,7 +1077,7 @@ function dibujarLista(ul, movimientos, textoVacio) {
     const fila = li.querySelector('.fila');
     if (m.id === ultimoAgregado) fila.classList.add('entrando');
     fila.append(
-      icono(iconoDe(m)),
+      icono(iconoDe(m), colorDe(m)),
       textoFila(m.tipo === 'ahorro' ? `Ahorro: ${m.categoria}` : m.categoria, [fechaBonita(m.fecha), m.nota].filter(Boolean).join(' · ')),
       montoFila(signos[m.tipo] + dinero.format(m.monto))
     );
@@ -1152,11 +1170,22 @@ function filaDeslizable(clase, alBorrar) {
   return li;
 }
 
-function icono(nombre) {
+// "color" es opcional: si viene, el ícono y su fondito llevan ese color.
+function icono(nombre, color) {
   const div = document.createElement('div');
   div.className = 'icono-cat';
   div.innerHTML = `<i class="ti ${nombre}" aria-hidden="true"></i>`;
+  // Como las monedas en las apps de cripto: círculo de color sólido con brillito y el dibujo en blanco.
+  if (color) {
+    div.classList.add('moneda');
+    div.style.setProperty('--color-cat', color);
+  }
   return div;
+}
+
+function colorDe(m) {
+  if (m.tipo === 'ahorro') return 'var(--ahorro)';
+  return COLORES[m.categoria] || (m.tipo === 'ingreso' ? 'var(--positivo)' : 'var(--negativo)');
 }
 
 function textoFila(titulo, detalle) {
@@ -1622,28 +1651,64 @@ function pintarMonto() {
   $('#monto-pantalla').textContent = '$' + Number(enteros).toLocaleString('es-MX') + (decimales !== undefined ? '.' + decimales : '');
 }
 
-// Chips de categoría; para ahorros, los chips son tus metas.
+// Las 2 categorías que más usas (o unas comunes si apenas empiezas); son las que se ven siempre.
+const PRINCIPALES = { gasto: ['Comida', 'Transporte'], ingreso: ['Ventas', 'Sueldo'] };
+
+function principalesDe(tipo) {
+  const usos = {};
+  for (const m of deSeccion('movimientos')) {
+    if (m.tipo !== tipo || m.categoria === 'Otros' || m.categoria === SALDO_INICIAL) continue;
+    usos[m.categoria] = (usos[m.categoria] || 0) + 1;
+  }
+  const masUsadas = Object.entries(usos).sort((a, b) => b[1] - a[1]).map(([c]) => c);
+  return [...new Set([...masUsadas, ...PRINCIPALES[tipo]])].slice(0, 2);
+}
+
+// Chips de categoría. Para no tener que deslizar, solo salen 4: tus 2 principales, "Nueva" con el
+// lápiz para escribir la tuya y "Otros" (que despliega todas las demás). Para ahorros, son tus metas.
 function pintarCategorias() {
   const tipo = $('#form').tipo.value;
   const contenedor = $('#chips-categoria');
-  const opciones =
-    tipo === 'ahorro'
-      ? deSeccion('metas').map((meta) => ({ valor: meta.id, texto: meta.nombre, icono: 'ti-target' }))
-      : categoriasDe(tipo).map((c) => ({ valor: c, texto: c, icono: ICONOS[c] || 'ti-tag' }));
-  if (tipo !== 'ahorro') opciones.push({ valor: NUEVA_CATEGORIA, texto: 'Otra', icono: 'ti-pencil' });
+  let opciones;
+  if (tipo === 'ahorro') {
+    opciones = deSeccion('metas').map((meta) => ({ valor: meta.id, texto: meta.nombre, icono: 'ti-target' }));
+  } else {
+    const principales = principalesDe(tipo);
+    // Si la categoría elegida no está a la vista (por ejemplo, viene de "Aportar" o de la IA), se despliegan todas.
+    const elegida = formulario.categoria;
+    if (elegida && elegida !== NUEVA_CATEGORIA && !principales.includes(elegida)) formulario.verTodas = true;
+    const visibles = formulario.verTodas ? categoriasDe(tipo) : principales;
+    opciones = visibles.map((c) => ({ valor: c, texto: c, icono: ICONOS[c] || 'ti-tag' }));
+    opciones.push({ valor: NUEVA_CATEGORIA, texto: 'Nueva', icono: 'ti-pencil' });
+    if (!formulario.verTodas) opciones.push({ desplegar: true, texto: 'Otros', icono: 'ti-chevron-down' });
+    if (formulario.verTodas) opciones.push({ desplegar: true, texto: 'Menos', icono: 'ti-chevron-up' });
+  }
+  contenedor.classList.toggle('envolver', tipo !== 'ahorro');
 
-  if (!opciones.some((o) => o.valor === formulario.categoria)) formulario.categoria = opciones[0]?.valor ?? null;
+  const elegibles = opciones.filter((o) => !o.desplegar);
+  if (!elegibles.some((o) => o.valor === formulario.categoria)) formulario.categoria = elegibles[0]?.valor ?? null;
   contenedor.replaceChildren(
     ...opciones.map((o) => {
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = 'chip' + (o.valor === formulario.categoria ? ' activo' : '');
-      chip.setAttribute('role', 'radio');
-      chip.setAttribute('aria-checked', o.valor === formulario.categoria);
+      const activo = !o.desplegar && o.valor === formulario.categoria;
+      chip.className = 'chip' + (activo ? ' activo' : '') + (o.desplegar ? ' chip-desplegar' : '');
+      if (!o.desplegar) {
+        chip.setAttribute('role', 'radio');
+        chip.setAttribute('aria-checked', activo);
+      }
       chip.innerHTML = `<i class="ti ${o.icono}" aria-hidden="true"></i>`;
       chip.append(o.texto);
       chip.addEventListener('click', () => {
-        formulario.categoria = o.valor;
+        if (o.desplegar) {
+          formulario.verTodas = !formulario.verTodas;
+          // Al cerrar, si lo elegido ya no se ve, se vuelve a la principal.
+          if (!formulario.verTodas && !principalesDe(tipo).includes(formulario.categoria) && formulario.categoria !== NUEVA_CATEGORIA) {
+            formulario.categoria = null;
+          }
+        } else {
+          formulario.categoria = o.valor;
+        }
         pintarCategorias();
         if (o.valor === NUEVA_CATEGORIA) $('#nueva-categoria').focus();
       });
@@ -1672,6 +1737,7 @@ $('#chips-categoria').addEventListener('scroll', actualizarFlechas);
 $('#chips-categoria').addEventListener(
   'wheel',
   (e) => {
+    if (e.currentTarget.classList.contains('envolver')) return; // ya no se desliza de lado
     if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
     e.preventDefault();
     e.currentTarget.scrollLeft += e.deltaY;
@@ -1694,6 +1760,7 @@ function abrirFormulario(prellenado = {}) {
   form.nota.value = prellenado.nota || '';
   formulario.monto = prellenado.monto ? String(prellenado.monto) : '0';
   formulario.categoria = prellenado.meta || prellenado.categoria || null;
+  formulario.verTodas = false;
   if (prellenado.categoria && form.tipo.value !== 'ahorro' && !categoriasDe(form.tipo.value).includes(prellenado.categoria)) {
     formulario.categoria = 'Otros';
   }
@@ -1706,6 +1773,7 @@ function abrirFormulario(prellenado = {}) {
 for (const radio of $('#form').querySelectorAll('input[name="tipo"]')) {
   radio.addEventListener('change', () => {
     formulario.categoria = null;
+    formulario.verTodas = false;
     pintarCategorias();
   });
 }

@@ -1,4 +1,4 @@
-/* Kashiki · estilo Coral (inspirado en Quantix, Pulse y apps de banco) */
+/* Kashiki · estilo Plata (inspirado en Quantix, Pulse y apps de banco) */
 
 :root {
   --fondo: #07090E;
@@ -8,13 +8,18 @@
   --texto: #F2F4F8;
   --suave: #8C94A6;
   --claro: #C9D1E0;
-  --acento: #FF4F7B;    /* coral (rosita) */
-  --acento-2: #FF9A8B;  /* salmón, el acento suave */
-  --acento-3: #E8365F;  /* coral oscuro, para degradados */
-  --tinte: 255 79 123;  /* el coral en números, para transparencias: rgb(var(--tinte) / 0.2) */
-  --tinte-2: 255 154 139;
+  /* Plateado, como Quantix: la interfaz es de un solo tono (metal con luz) y el color
+     solo aparece donde significa algo: gastos, ahorros, ingresos y cada categoría. */
+  --acento: #E4E7EE;    /* plata */
+  --acento-2: #AEB5C4;  /* plata más oscura, el acento suave */
+  --acento-3: #7E8699;  /* plata oscura, para degradados */
+  --tinte: 205 212 228; /* la plata en números, para transparencias: rgb(var(--tinte) / 0.2) */
+  --tinte-2: 150 160 185;
+  --acento-claro: #F2F4F8; /* textos claritos sobre el color principal */
+  --sobre-acento: #0B0D12; /* las letras encima del color principal (oscuras, porque la plata es clara) */
   --positivo: #3DDC97;  /* ingresos: siempre verde */
   --negativo: #FF5A52;  /* gastos: siempre rojo */
+  --ahorro: #FFC94D;    /* ahorros: siempre amarillo */
   --rebote: cubic-bezier(.2, .9, .3, 1.25);
   --suavecito: cubic-bezier(.2, .8, .2, 1);
   color-scheme: dark;
@@ -429,13 +434,13 @@ main {
   font-size: 1.25rem;
 }
 .ingreso .icono-cat { color: var(--positivo); }
-.ahorro .icono-cat { color: var(--acento-2); }
+.ahorro .icono-cat { color: var(--ahorro); }
 .fila-texto { flex: 1; min-width: 0; display: grid; }
 .fila-texto strong { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fila-texto small { color: var(--suave); font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .monto { font-weight: 600; white-space: nowrap; }
 .ingreso .monto { color: var(--positivo); }
-.ahorro .monto { color: var(--acento-2); }
+.ahorro .monto { color: var(--ahorro); }
 .vacio { color: var(--suave); padding: 14px; text-align: center; border: 1px dashed var(--linea); border-radius: 16px; font-size: 0.9rem; }
 .pista-deslizar { display: flex; align-items: center; gap: 6px; margin-top: -6px; }
 .pista-deslizar[hidden] { display: none; }
@@ -1180,7 +1185,7 @@ a.fila-ajuste { text-decoration: none; }
 .campo, .buscador input, .selector-mes, .ia input { font-size: 16px; }
 
 /* ==========================================================
-   Diseño Coral: brillo suave, tarjetas redondas, botones rápidos,
+   Diseño Plata: brillo suave, tarjetas redondas, botones rápidos,
    anillo del mes y barra de abajo flotante con el + aparte.
    (Va al final para ganarle a los estilos de arriba.)
    ========================================================== */
@@ -1202,7 +1207,7 @@ body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 
 /* Encabezado translúcido */
 .encabezado { background: rgb(7 9 14 / 0.82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-.avatar { width: 44px; height: 44px; background: linear-gradient(135deg, var(--acento), var(--acento-2)) center / cover no-repeat; color: #fff; font-weight: 800; }
+.avatar { width: 44px; height: 44px; background: linear-gradient(135deg, var(--acento), var(--acento-2)) center / cover no-repeat; color: var(--sobre-acento); font-weight: 800; }
 .saludo strong { font-size: 1.12rem; font-weight: 800; letter-spacing: -0.02em; }
 .boton-icono { width: 40px; height: 40px; border-radius: 50%; background: var(--tarjeta-2); }
 .pastilla-racha { height: 40px; background: var(--tarjeta-2); }
@@ -1222,7 +1227,7 @@ body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
   border: 1px solid rgb(var(--tinte) / 0.28);
 }
 .saldo-bloque > * { grid-column: 1; }
-#saldo-etiqueta { color: #FFD9E2; }
+#saldo-etiqueta { color: var(--acento-claro); }
 .saldo { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1.05; }
 .comparacion { font-size: 0.8rem; }
 
@@ -1258,20 +1263,24 @@ body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 .rapido .ti { font-size: 1.25rem; }
 .rapido.gasto .ti { color: var(--negativo); }
 .rapido.ingreso .ti { color: var(--positivo); }
-.rapido.ahorro .ti { color: var(--acento-2); }
+.rapido.ahorro .ti { color: var(--ahorro); }
 
 /* Selectores: pastillas con el activo en degradado */
 .segmentos { background: rgb(0 0 0 / 0.35); border-radius: 999px; }
 .segmentos button, .segmentos label span { border-radius: 999px; }
 .segmentos button.activo, .segmentos input:checked + span {
   background: linear-gradient(135deg, var(--acento), var(--acento-3));
-  color: #fff;
+  color: var(--sobre-acento);
   box-shadow: 0 6px 16px rgb(var(--tinte) / 0.35);
 }
 .chip.activo { background: rgb(var(--tinte) / 0.14); border-color: rgb(var(--tinte) / 0.6); color: var(--texto); }
 
 .selector-mes { border-radius: 999px; background: var(--tarjeta-2); padding: 6px 12px; }
 
+/* Al agregar: Gasto en rojo, Ahorro en amarillo e Ingreso en verde cuando están elegidos */
+.tipo-movimiento input[value="gasto"]:checked + span { background: var(--negativo); color: #fff; box-shadow: 0 6px 16px rgb(255 90 82 / 0.35); }
+.tipo-movimiento input[value="ahorro"]:checked + span { background: var(--ahorro); color: #241A00; box-shadow: 0 6px 16px rgb(255 201 77 / 0.35); }
+.tipo-movimiento input[value="ingreso"]:checked + span { background: var(--positivo); color: #032A1B; box-shadow: 0 6px 16px rgb(61 220 151 / 0.35); }
 /* Cuadros de Gastos (izquierda) e Ingresos (derecha) */
 .cuadro-mes { gap: 8px; }
 .cuadro-arriba { display: flex; align-items: center; justify-content: space-between; }
@@ -1292,6 +1301,22 @@ body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 .icono-cat { width: 42px; height: 42px; border-radius: 14px; }
 .ver-todos { border-radius: 16px; height: 46px; }
 
+/* Íconos de categoría tipo moneda: círculo sólido de su color, con brillito arriba y dibujo blanco */
+.icono-cat.moneda {
+  border-radius: 50%;
+  color: #fff;
+  background:
+    radial-gradient(circle at 30% 25%, rgb(255 255 255 / 0.35), transparent 55%),
+    linear-gradient(145deg, var(--color-cat), color-mix(in srgb, var(--color-cat) 62%, #000));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-cat) 35%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.25);
+  font-size: 1.2rem;
+}
+.icono-cat.moneda .ti { filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.25)); }
+/* Chips de categoría al agregar: ya no se deslizan de lado, se acomodan en renglones */
+.chips.envolver { flex-wrap: wrap; overflow: visible; gap: 6px; }
+.chips.envolver .chip { padding: 6px 9px; gap: 4px; font-size: 0.78rem; }
+.carrusel:has(.chips.envolver) .flecha { display: none; }
+.chip-desplegar { border-style: dashed; }
 /* Barra de abajo flotante (con nombres) y el + aparte */
 .barra-secciones {
   left: 16px;
@@ -1322,7 +1347,7 @@ body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
   height: 64px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--acento), var(--acento-3));
-  color: #fff;
+  color: var(--sobre-acento);
   box-shadow: 0 10px 30px rgb(var(--tinte) / 0.5);
 }
 .aviso { bottom: calc(100px + env(safe-area-inset-bottom)); }
@@ -1345,7 +1370,7 @@ body { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
   }
   .barra-secciones [data-vista] { padding: 11px 14px; border-radius: 12px; font-size: 0.95rem; gap: 12px; }
   .barra-secciones .ti { font-size: 1.3rem; }
-  .barra-secciones .agregar-lateral { background: linear-gradient(135deg, var(--acento), var(--acento-3)); color: #fff; }
+  .barra-secciones .agregar-lateral { background: linear-gradient(135deg, var(--acento), var(--acento-3)); color: var(--sobre-acento); }
   .punto { right: auto; }
   body { padding-bottom: 32px; }
   .aviso { bottom: 24px; }
