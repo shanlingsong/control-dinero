@@ -32,11 +32,13 @@ body {
 html, body { overscroll-behavior-y: contain; }
 
 /* ---------- Jalar hacia abajo para recargar ---------- */
+/* El circulito sale justo debajo del encabezado (que ya deja espacio para la isla del iPhone
+   o la cámara), en el hueco que se abre cuando la pantalla baja. */
 .recargar {
   position: fixed;
   top: 0;
   left: 50%;
-  z-index: 20;
+  z-index: 4;
   width: 40px;
   height: 40px;
   margin-left: -20px;
@@ -48,11 +50,12 @@ html, body { overscroll-behavior-y: contain; }
   place-items: center;
   font-size: 1.3rem;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
-  transform: translateY(-50px);
+  transform: translateY(-20px) scale(.4);
   opacity: 0;
   pointer-events: none;
 }
-.recargar.suelto { transition: transform .25s var(--suavecito), opacity .25s; }
+.recargar.suelto { transition: transform .35s var(--rebote), opacity .25s; }
+main.suelto { transition: transform .35s var(--rebote); }
 .recargar.listo { color: var(--positivo); }
 .recargar.girando i { animation: girar .7s linear infinite; }
 @keyframes girar { to { transform: rotate(360deg); } }

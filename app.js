@@ -1973,8 +1973,9 @@ if (db) {
 setTimeout(terminarCarga, 5000); // por si la nube tarda mucho, no te deja esperando
 
 // ---------- Jalar hacia abajo para recargar (como en Instagram) ----------
-// Si estás hasta arriba y jalas la pantalla hacia abajo, sale el circulito; al soltarlo pasando
-// la marca, la app se recarga y trae la versión más nueva y tus datos de la nube.
+// Si estás hasta arriba y jalas hacia abajo, la pantalla baja contigo (el encabezado se queda)
+// y en el hueco sale el circulito; al soltarlo pasando la marca, la app se recarga y trae
+// la versión más nueva y tus datos de la nube.
 const JALON_MINIMO = 70; // cuánto hay que jalar (en pixeles) para que recargue
 const JALON_MAXIMO = 110;
 let inicioJalon = null;
@@ -1982,16 +1983,26 @@ let jalon = 0;
 
 function moverCirculo(distancia) {
   const circulo = $('#recargar');
-  circulo.style.transform = `translateY(${distancia - 50}px) rotate(${distancia * 3}deg)`;
-  circulo.style.opacity = Math.min(1, distancia / JALON_MINIMO);
+  const avance = Math.min(1, distancia / JALON_MINIMO);
+  // El circulito va centrado en el hueco entre el encabezado y la pantalla que bajó.
+  circulo.style.transform = `translateY(${distancia / 2 - 20}px) scale(${0.4 + avance * 0.6}) rotate(${distancia * 3}deg)`;
+  circulo.style.opacity = avance;
   circulo.classList.toggle('listo', distancia >= JALON_MINIMO);
+  $('main').style.transform = distancia ? `translateY(${distancia}px)` : '';
+}
+
+function soltarAnimado(si) {
+  $('#recargar').classList.toggle('suelto', si);
+  $('main').classList.toggle('suelto', si);
 }
 
 document.addEventListener('touchstart', (e) => {
   const hojaAbierta = document.querySelector('dialog[open]');
   inicioJalon = window.scrollY <= 0 && !hojaAbierta && e.touches.length === 1 ? e.touches[0].clientY : null;
   jalon = 0;
-  $('#recargar').classList.remove('suelto');
+  if (inicioJalon === null) return;
+  soltarAnimado(false);
+  $('#recargar').style.top = `${$('.encabezado').getBoundingClientRect().bottom}px`;
 }, { passive: true });
 
 document.addEventListener('touchmove', (e) => {
@@ -2010,14 +2021,13 @@ document.addEventListener('touchmove', (e) => {
 document.addEventListener('touchend', () => {
   if (inicioJalon === null) return;
   inicioJalon = null;
-  const circulo = $('#recargar');
-  circulo.classList.add('suelto');
+  soltarAnimado(true);
   if (jalon < JALON_MINIMO) {
     moverCirculo(0);
     return;
   }
-  moverCirculo(JALON_MINIMO);
-  circulo.classList.add('girando');
+  moverCirculo(JALON_MINIMO); // la pantalla se queda un poco abajo mientras gira, como en Instagram
+  $('#recargar').classList.add('girando');
   setTimeout(() => location.reload(), 350);
 });
 
