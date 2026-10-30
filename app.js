@@ -2258,6 +2258,7 @@ function quitarCarga() {
 // ---------- Arranque ----------
 
 setTimeout(terminarCarga, 5000); // por si la nube tarda mucho (o algo falla), no te deja esperando
+setTimeout(quitarCarga, 8000); // último seguro: aunque la animación de la barrita se atore, la pantalla se quita
 progresoCarga(25);
 $('#mes').value = hoy().slice(0, 7);
 // Si algo falla al dibujar, la app sigue arrancando en lugar de quedarse trabada en la pantalla de carga.
