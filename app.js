@@ -148,6 +148,9 @@ function normalizar(nombre, x) {
     if (!(o.monto > 0) || !o.nombre) return null;
     if (!['semana', 'mes', 'anio'].includes(o.cada)) o.cada = 'mes';
     if (!ES_FECHA.test(o.proximo)) o.proximo = fechaLocal(new Date());
+    // El día del mes en que se cobra (para que un cobro del 31 vuelva al 31 después de febrero).
+    o.dia = Number(o.dia);
+    if (!(o.dia >= 1 && o.dia <= 31)) o.dia = Number(o.proximo.slice(8, 10));
     return o;
   }
   o.monto = Number(o.monto);
@@ -254,9 +257,9 @@ const COLUMNAS = {
   metas: ['id', 'nombre', 'objetivo', 'creado', 'seccion'],
   dias: ['id', 'creado'],
   pendientes: ['id', 'tipo', 'persona', 'monto', 'fecha', 'nota', 'creado', 'seccion'],
-  fijos: ['id', 'nombre', 'monto', 'cada', 'proximo', 'seccion', 'creado'],
+  fijos: ['id', 'nombre', 'monto', 'cada', 'proximo', 'dia', 'seccion', 'creado'],
 };
-const COLUMNAS_NUMERO = ['monto', 'objetivo', 'creado'];
+const COLUMNAS_NUMERO = ['monto', 'objetivo', 'creado', 'dia'];
 
 let cuenta = null; // el usuario con sesión iniciada, o null
 
@@ -282,8 +285,10 @@ async function mandarCambio(cambio) {
 }
 
 // Guarda un cambio para subirlo; si no hay internet, se queda en la fila y se reintenta después.
+// Se encola si hay cuenta O si los datos de este teléfono son de una cuenta (CLAVE_DUENO): así, si la
+// sesión venció sin internet, lo que anotes mientras tanto se sube cuando vuelvas a entrar.
 function encolar(cambio) {
-  if (!cuenta) return;
+  if (!cuenta && !leer(CLAVE_DUENO, null)) return;
   pendientes.push(cambio);
   escribir(CLAVE_PENDIENTES, pendientes);
 }
@@ -299,6 +304,22 @@ let esperandoDecision = false;
 // "column … does not exist" también se reintenta: pasa si la app se actualizó antes que la base de datos.
 const esErrorDeRed = (error) =>
   !navigator.onLine || /fetch|network|Load failed|timeout|column|schema cache/i.test(String(error?.message || error));
+
+// Supabase entrega máximo 1000 filas por consulta: se piden de 1000 en 1000 hasta tenerlas todas.
+const POR_PAGINA = 1000;
+async function leerTabla(nombre) {
+  const todas = [];
+  for (let desde = 0; ; desde += POR_PAGINA) {
+    const { data, error } = await db
+      .from(nombre)
+      .select(COLUMNAS[nombre].join(','))
+      .order('id')
+      .range(desde, desde + POR_PAGINA - 1);
+    if (error) throw error;
+    todas.push(...data);
+    if (data.length < POR_PAGINA) return todas;
+  }
+}
 
 async function sincronizar() {
   if (!cuenta || !db) return;
@@ -330,11 +351,9 @@ async function sincronizar() {
       }
       // 2. Descarga todo: la nube es la fuente de verdad.
       const nombres = Object.keys(CLAVES);
-      const respuestas = await Promise.all(nombres.map((nombre) => db.from(nombre).select(COLUMNAS[nombre].join(','))));
-      const fallo = respuestas.find((r) => r.error);
-      if (fallo) throw fallo.error;
+      const filas = await Promise.all(nombres.map(leerTabla));
       nombres.forEach((nombre, i) => {
-        datos[nombre] = limpiar(nombre, respuestas[i].data.map((fila) => deFila(nombre, fila)));
+        datos[nombre] = limpiar(nombre, filas[i].map((fila) => deFila(nombre, fila)));
       });
       // Lo que agregaste o borraste MIENTRAS se descargaba todavía no está en la nube:
       // se vuelve a aplicar encima para que no "desaparezca" de la pantalla.
@@ -342,6 +361,8 @@ async function sincronizar() {
       for (const nombre of nombres) guardarColeccion(nombre);
     } while (otraVez || pendientes.length > 0);
     dibujar();
+    // También trae las secciones cambiadas en otro dispositivo (y sube las que no se pudieron subir).
+    seccionesDeLaCuenta().catch(() => {});
     if (rechazados > 0) {
       mostrarEstado('ti-alert-triangle', `Guardado, pero ${rechazados} ${rechazados === 1 ? 'registro tenía' : 'registros tenían'} datos inválidos y no se subieron`, true);
     } else {
@@ -1411,10 +1432,12 @@ function liquidarPago(p) {
 const AVISAR_FIJOS = 7; // con cuántos días de anticipación se avisa
 const TEXTO_CADA = { semana: 'Cada semana', mes: 'Cada mes', anio: 'Cada año' };
 
-// La fecha del siguiente cobro. En los meses cortos se ajusta: un cobro del 31 pasa al 30 o al 28.
-function siguienteCobro(fecha, cada) {
+// La fecha del siguiente cobro. En los meses cortos se ajusta: un cobro del 31 pasa al 30 o al 28,
+// y al mes siguiente regresa al 31 (por eso se usa "dia", el día original, y no la fecha anterior).
+function siguienteCobro(fecha, cada, dia) {
   if (cada === 'semana') return sumarDias(fecha, 7);
-  const [a, m, d] = fecha.split('-').map(Number);
+  const [a, m, dFecha] = fecha.split('-').map(Number);
+  const d = dia || dFecha;
   const anio = cada === 'anio' ? a + 1 : a + (m === 12 ? 1 : 0);
   const mes = cada === 'anio' ? m : (m % 12) + 1;
   const ultimoDia = new Date(anio, mes, 0).getDate();
@@ -1469,8 +1492,14 @@ function dibujarFijos() {
 }
 
 // Al pagarlo se anota como gasto y la fecha brinca al siguiente cobro (sigue en la lista).
+const pagadoHaceRato = new Map(); // id → cuándo se tocó "Pagué" (contra el doble toque)
+
 function pagarFijo(f) {
-  agregar('movimientos', {
+  // Un segundo toque seguido (la lista se redibuja y el botón nuevo queda bajo el dedo) no vuelve a cobrar.
+  if (Date.now() - (pagadoHaceRato.get(f.id) || 0) < 2000) return;
+  pagadoHaceRato.set(f.id, Date.now());
+
+  const gasto = {
     id: crypto.randomUUID(),
     tipo: 'gasto',
     monto: f.monto,
@@ -1479,16 +1508,27 @@ function pagarFijo(f) {
     fecha: hoy(),
     creado: Date.now(),
     meta: '',
-  });
+    seccion: f.seccion,
+  };
+  agregar('movimientos', gasto);
   // Se cambia guardando una copia nueva con el mismo id (así también se actualiza en la nube).
-  const siguiente = { ...f, proximo: siguienteCobro(f.proximo, f.cada) };
-  datos.fijos = datos.fijos.map((x) => (x.id === f.id ? siguiente : x));
+  const siguiente = { ...f, proximo: siguienteCobro(f.proximo, f.cada, f.dia) };
+  cambiarFijo(siguiente);
+  vibrar();
+  avisar(`${f.nombre} pagado. El siguiente cobro es ${fechaBonita(siguiente.proximo)}.`, 'Deshacer', () => {
+    // Deshacer: se quita el gasto y el pago regresa a su fecha anterior.
+    borrar('movimientos', gasto.id);
+    cambiarFijo(f);
+    pagadoHaceRato.delete(f.id);
+  });
+}
+
+function cambiarFijo(fijo) {
+  datos.fijos = datos.fijos.map((x) => (x.id === fijo.id ? fijo : x));
   guardarColeccion('fijos');
-  encolar({ accion: 'agregar', coleccion: 'fijos', objeto: siguiente });
+  encolar({ accion: 'agregar', coleccion: 'fijos', objeto: fijo });
   dibujar();
   sincronizar();
-  vibrar();
-  avisar(`${f.nombre} pagado. El siguiente cobro es ${fechaBonita(siguiente.proximo)}.`);
 }
 
 $('#aviso-fijos').addEventListener('click', () => mostrarVista('pagos'));
@@ -1934,6 +1974,7 @@ $('#form-fijo').addEventListener('submit', (evento) => {
     monto: Math.round(Number(form.monto.value) * 100) / 100,
     cada: form.cada.value,
     proximo: form.proximo.value,
+    dia: Number(form.proximo.value.slice(8, 10)),
     creado: Date.now(),
   });
   cerrarHoja($('#hoja-fijo'));
@@ -1947,41 +1988,85 @@ let seccionEditando = null; // null = creando una nueva
 
 const seccionVista = () => secciones.find((s) => s.id === seccionActual) || SECCION_PERSONAL;
 
+// Las secciones borradas se recuerdan un tiempo (id → cuándo), para que otro dispositivo no las "reviva".
+const CLAVE_SECCIONES_BORRADAS = 'mi-dinero:secciones-borradas';
+const CLAVE_SECCIONES_SIN_SUBIR = 'mi-dinero:secciones-sin-subir';
+let seccionesBorradas = leer(CLAVE_SECCIONES_BORRADAS, {});
+
+// "Otra sección" es solo un nombre provisional de este teléfono: no se sube a la cuenta.
+const seccionesParaGuardar = () => secciones.filter((s) => !s.relleno);
+
 function guardarSecciones() {
   escribir(CLAVE_SECCIONES, secciones);
+  escribir(CLAVE_SECCIONES_BORRADAS, seccionesBorradas);
   // Con cuenta, la lista también se guarda en tu cuenta para que salga en todos tus dispositivos.
-  if (cuenta && db) {
-    db.auth.updateUser({ data: { secciones } }).then(({ data }) => {
+  if (!cuenta || !db) return;
+  escribir(CLAVE_SECCIONES_SIN_SUBIR, true);
+  db.auth
+    .updateUser({ data: { secciones: seccionesParaGuardar(), secciones_borradas: seccionesBorradas } })
+    .then(({ data, error }) => {
+      if (error) return; // Se reintenta en la siguiente sincronización.
       if (data?.user) cuenta = data.user;
-    });
-  }
+      escribir(CLAVE_SECCIONES_SIN_SUBIR, false);
+    })
+    .catch(() => {});
 }
 
-// Junta las secciones guardadas en la cuenta con las de este teléfono (al entrar).
+// Al salir de la cuenta, las secciones eran de esa cuenta.
+function reiniciarSecciones() {
+  secciones = [SECCION_PERSONAL];
+  seccionActual = 'personal';
+  seccionesBorradas = {};
+  escribir(CLAVE_SECCIONES, secciones);
+  escribir(CLAVE_SECCION, seccionActual);
+  escribir(CLAVE_SECCIONES_BORRADAS, seccionesBorradas);
+  escribir(CLAVE_SECCIONES_SIN_SUBIR, false);
+}
+
+// Junta las secciones guardadas en la cuenta con las de este teléfono (al entrar y al sincronizar).
 async function seccionesDeLaCuenta() {
   // getUser() pregunta a la nube, así salen las secciones creadas en otro dispositivo hace poco.
   const { data } = await db.auth.getUser().catch(() => ({ data: null }));
   if (!cuenta) return;
   if (data?.user) cuenta = data.user;
   const enLaCuenta = cuenta.user_metadata?.secciones;
-  if (!Array.isArray(enLaCuenta)) {
-    if (secciones.length > 1) guardarSecciones();
-    return;
+  const borradasCuenta = cuenta.user_metadata?.secciones_borradas || {};
+  const antes = JSON.stringify([secciones, seccionesBorradas]);
+
+  // Borradas: se juntan las de los dos lados (gana la fecha más nueva).
+  for (const [id, cuando] of Object.entries(borradasCuenta)) {
+    if (!(seccionesBorradas[id] >= cuando)) seccionesBorradas[id] = cuando;
   }
-  // Las de la cuenta mandan; las que solo estaban aquí (o "Otra sección") se quedan si la cuenta no las tiene.
-  const porId = new Map(secciones.filter((s) => s.nombre !== 'Otra sección').map((s) => [s.id, s]));
-  for (const s of enLaCuenta) if (s?.id) porId.set(s.id, s);
-  secciones = [...porId.values()];
+  // Por cada sección gana la versión cambiada más recientemente; un relleno nunca le gana a una real.
+  const porId = new Map(secciones.map((s) => [s.id, s]));
+  for (const s of Array.isArray(enLaCuenta) ? enLaCuenta : []) {
+    if (!s?.id) continue;
+    const aqui = porId.get(s.id);
+    if (!aqui || aqui.relleno || (s.cambio || 0) > (aqui.cambio || 0)) porId.set(s.id, s);
+  }
+  // Se quita lo borrado, salvo que alguien la haya vuelto a cambiar después de borrarla.
+  secciones = [...porId.values()].filter((s) => s.id === 'personal' || !(seccionesBorradas[s.id] > (s.cambio || 0)));
+  if (!secciones.some((s) => s.id === 'personal')) secciones.unshift(SECCION_PERSONAL);
+  if (!secciones.some((s) => s.id === seccionActual)) cambiarSeccion('personal');
+
   escribir(CLAVE_SECCIONES, secciones);
-  if (secciones.length > enLaCuenta.length) guardarSecciones();
-  dibujar();
+  escribir(CLAVE_SECCIONES_BORRADAS, seccionesBorradas);
+  // Solo se sube si algo es distinto (sin importar el orden), para no escribir en cada sincronización.
+  const huella = (lista, borradas) =>
+    JSON.stringify([
+      [...lista].sort((a, b) => (a.id < b.id ? -1 : 1)).map((s) => [s.id, s.nombre, s.icono, s.cambio || 0]),
+      Object.entries(borradas).sort(),
+    ]);
+  const distinto = huella(Array.isArray(enLaCuenta) ? enLaCuenta : [], borradasCuenta) !== huella(seccionesParaGuardar(), seccionesBorradas);
+  if (distinto || leer(CLAVE_SECCIONES_SIN_SUBIR, false)) guardarSecciones();
+  if (JSON.stringify([secciones, seccionesBorradas]) !== antes) dibujar();
 }
 
 function dibujarSecciones() {
   // Si llegó algo de una sección que este teléfono no conoce (por ejemplo, creada en otro), se agrega.
   for (const nombre of ['movimientos', 'metas', 'pendientes', 'fijos']) {
     for (const x of datos[nombre]) {
-      if (!secciones.some((s) => s.id === x.seccion)) secciones.push({ id: x.seccion, nombre: 'Otra sección', icono: 'ti-folder' });
+      if (!secciones.some((s) => s.id === x.seccion)) secciones.push({ id: x.seccion, nombre: 'Otra sección', icono: 'ti-folder', relleno: true });
     }
   }
   if (!secciones.some((s) => s.id === seccionActual)) seccionActual = 'personal';
@@ -2069,12 +2154,15 @@ $('#form-seccion').addEventListener('submit', (evento) => {
   if (!nombre) return;
   const icono = $('#seccion-iconos .activo')?.dataset.icono || 'ti-folder';
   if (seccionEditando) {
-    Object.assign(secciones.find((s) => s.id === seccionEditando.id), { nombre, icono });
+    const seccion = secciones.find((s) => s.id === seccionEditando.id);
+    if (!seccion) return cerrarHoja($('#hoja-seccion'));
+    Object.assign(seccion, { nombre, icono, cambio: Date.now() });
+    delete seccion.relleno; // al ponerle nombre, ya es una sección de verdad
     guardarSecciones();
     dibujar();
     avisar('Sección actualizada');
   } else {
-    const nueva = { id: 's' + Date.now().toString(36), nombre, icono };
+    const nueva = { id: 's' + Date.now().toString(36), nombre, icono, cambio: Date.now() };
     secciones.push(nueva);
     guardarSecciones();
     cambiarSeccion(nueva.id);
@@ -2093,6 +2181,7 @@ $('#seccion-borrar').addEventListener('click', () => {
     return;
   }
   secciones = secciones.filter((s) => s.id !== id);
+  seccionesBorradas[id] = Date.now();
   guardarSecciones();
   cerrarHoja($('#hoja-seccion'));
   cambiarSeccion('personal');
@@ -2205,7 +2294,11 @@ lienzo.addEventListener('pointerup', (e) => {
 });
 lienzo.addEventListener('pointercancel', soltarGrafica);
 
-$('#mes').addEventListener('change', dibujarMes);
+$('#mes').addEventListener('change', () => {
+  // Si se borra el mes (en algunos navegadores se puede), regresa al mes actual en vez de fallar.
+  if (!/^\d{4}-\d{2}$/.test($('#mes').value)) $('#mes').value = hoy().slice(0, 7);
+  dibujarMes();
+});
 
 // ---------- Anotar escribiendo: "gasté 80 en tacos ayer" ----------
 // Sin IA ni internet: con reglas (listas de palabras) se saca el monto, el tipo, la categoría,
@@ -2340,16 +2433,20 @@ function interpretarTexto(original) {
   const texto = ' ' + base.replace(/[¿?¡!,;]|\.(?!\d)/g, ' ').replace(/\s+/g, ' ') + ' ';
   const palabras = texto.trim().split(' ');
   // Palabra completa (o su plural): "taco" encuentra "tacos", pero "pan" no encuentra "pantalón".
-  const tiene = (palabra) => new RegExp(`\\s${palabra.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(s|es)?\\s`).test(texto);
+  const tiene = (palabra, en = texto) => new RegExp(`\\s${palabra.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(s|es)?\\s`).test(en);
 
   // 1. El monto: el primer número ("80", "$1,250.50", "2 mil", "2k", "mil") o con letra ("doscientos").
   let monto = 0;
   const conK = base.match(/(\d+(?:[.,]\d+)?)\s?k\b/);
-  const numero = base.match(/\$?\s?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(\s*mil\b)?/);
+  // "1,500" y "1.500" son mil quinientos; "1.50" y "1,50" son un peso con cincuenta.
+  const numero = base.match(/\$?\s?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d{1,3}(?:\.\d{3})+(?!\d)|\d+(?:[.,]\d{1,2})?)(\s*mil\b)?/);
   if (conK) {
     monto = Number(conK[1].replace(',', '.')) * 1000;
   } else if (numero) {
-    monto = Number(numero[1].replace(/,(?=\d{3}\b)/g, '').replace(',', '.'));
+    const cifra = numero[1];
+    monto = /^\d{1,3}(?:\.\d{3})+$/.test(cifra)
+      ? Number(cifra.replace(/\./g, ''))
+      : Number(cifra.replace(/,(?=\d{3}\b)/g, '').replace(',', '.'));
     if (numero[2]) monto *= 1000;
   } else {
     monto = numeroEnLetra(palabras);
@@ -2357,9 +2454,12 @@ function interpretarTexto(original) {
   monto = Math.round(monto * 100) / 100;
 
   // 2. El tipo: ingreso o ahorro si aparece alguna de sus palabras; si no, gasto.
+  //    "Farmacias del Ahorro" es una tienda: ahí "ahorro" no quiere decir que ahorraste.
+  const textoTipo = texto.replace(/ farmacias? del ahorro /g, ' farmacia ');
+  const tieneTipo = (palabra) => tiene(palabra, textoTipo);
   let tipo = 'gasto';
-  if (PALABRAS_TIPO.ahorro.some(tiene)) tipo = 'ahorro';
-  else if (PALABRAS_TIPO.ingreso.some(tiene)) tipo = 'ingreso';
+  if (PALABRAS_TIPO.ahorro.some(tieneTipo)) tipo = 'ahorro';
+  else if (PALABRAS_TIPO.ingreso.some(tieneTipo)) tipo = 'ingreso';
 
   // 3. La categoría. En este orden: el nombre de una de tus categorías, lo que aprendió de ti,
   //    su lista de palabras y, si no conoce nada, te propone una categoría nueva.
@@ -2373,7 +2473,7 @@ function interpretarTexto(original) {
     categoria =
       validas.find((c) => c !== 'Otros' && tiene(sinAcentos(c))) ||
       categoriaAprendida(palabras, tipo, validas) ||
-      Object.entries(PALABRAS_CATEGORIA).find(([c, lista]) => validas.includes(c) && lista.some(tiene))?.[0] ||
+      Object.entries(PALABRAS_CATEGORIA).find(([c, lista]) => validas.includes(c) && lista.some((p) => tiene(p)))?.[0] ||
       null;
     if (!categoria) {
       // La primera palabra "de verdad" que no sea un nombre de persona (las que empiezan con mayúscula
@@ -2471,7 +2571,11 @@ $('#dictar').addEventListener('click', () => {
     campo.value = [...e.results].map((r) => r[0].transcript).join(' ').trim();
   };
   reconocedor.onerror = (e) => {
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+    if (e.error === 'service-not-allowed') {
+      // iPhone sin dictado de Siri (o en la app instalada): el micrófono del teclado sí funciona.
+      avisar('Este teléfono no permite dictar aquí. Usa el micrófono de tu teclado para escribirlo.');
+      setTimeout(() => campo.focus(), 50);
+    } else if (e.error === 'not-allowed') {
       avisar('Kashiki necesita permiso para usar el micrófono. Actívalo en los ajustes del teléfono.');
     } else if (e.error === 'no-speech') {
       avisar('No se escuchó nada. Intenta de nuevo.');
@@ -2640,6 +2744,8 @@ function ponerCuenta(usuario) {
   nombreDeLaCuenta();
   if (anterior === cuenta.id) return;
   seccionesDeLaCuenta();
+  // Se prepara Telegram por detrás (despierta al servidor y deja el link listo), para que el botón no tarde.
+  setTimeout(() => revisarTelegram().catch(() => {}), 2500);
   return alEntrar();
 }
 
@@ -2701,9 +2807,24 @@ $('#cerrar-sesion').addEventListener('click', async () => {
       return;
     }
   }
-  await db.auth.signOut();
+  const boton = $('#cerrar-sesion');
+  boton.disabled = true;
+  // Este teléfono deja de recibir los avisos de esa cuenta (con límite, para no quedarse esperando).
+  await conLimite(quitarNotificaciones(), 5000, 'tardó').catch(() => {});
+  await db.auth.signOut().catch(() => db.auth.signOut({ scope: 'local' }).catch(() => {}));
+  boton.disabled = false;
   salirDeLaCuenta('Cerraste sesión. Tus datos siguen guardados en tu cuenta.');
 });
+
+// Borra la dirección de notificaciones de este teléfono en la cuenta y en el propio teléfono.
+async function quitarNotificaciones() {
+  if (!('serviceWorker' in navigator)) return;
+  const registro = await navigator.serviceWorker.getRegistration();
+  const suscripcion = await registro?.pushManager?.getSubscription();
+  if (!suscripcion) return;
+  await pedirAlBot('push-quitar', { endpoint: suscripcion.endpoint }).catch(() => {});
+  await suscripcion.unsubscribe().catch(() => {});
+}
 
 // Quita del teléfono todo lo de la cuenta (al cerrar sesión o al borrarla).
 function salirDeLaCuenta(mensaje) {
@@ -2711,11 +2832,10 @@ function salirDeLaCuenta(mensaje) {
   borrarDatosLocales();
   escribir(CLAVE_DUENO, null);
   escribir(CLAVE_TELEGRAM, null);
+  escribir(CLAVE_LINK_TELEGRAM, null);
+  linkTelegram = { url: '', hecho: 0, cuenta: '' };
   // Las secciones también eran de esa cuenta.
-  secciones = [SECCION_PERSONAL];
-  seccionActual = 'personal';
-  escribir(CLAVE_SECCIONES, secciones);
-  escribir(CLAVE_SECCION, seccionActual);
+  reiniciarSecciones();
   ponerCuenta(null);
   dibujar();
   cerrarHoja($('#hoja-ajustes'));
@@ -2736,8 +2856,7 @@ $('#borrar-para-siempre').addEventListener('click', async () => {
   boton.disabled = true;
   try {
     // Si el teléfono tenía notificaciones, se apagan aquí también.
-    const registro = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
-    await (await registro?.pushManager?.getSubscription())?.unsubscribe().catch(() => {});
+    await conLimite(quitarNotificaciones(), 5000, 'tardó').catch(() => {});
     await pedirAlBot('borrar-cuenta');
     await db.auth.signOut({ scope: 'local' }).catch(() => {});
     $('#confirmar-borrado').hidden = true;
@@ -2792,13 +2911,15 @@ const pedirAlBot = async (accion, extra = {}) => {
 // Lo último que se supo (¿conectado o no?) se guarda en el teléfono, para pintar el botón
 // correcto al instante en lugar de esperar a que conteste Supabase.
 const CLAVE_TELEGRAM = 'mi-dinero:telegram';
+const CLAVE_LINK_TELEGRAM = 'mi-dinero:telegram-link';
 const MINUTOS_LINK = 25; // el código dura 30 en el servidor; se renueva un poco antes
-let linkTelegram = { url: '', hecho: 0 };
+// El link se guarda en el teléfono: al abrir Configuración ya está listo y el botón abre Telegram al instante.
+let linkTelegram = leer(CLAVE_LINK_TELEGRAM, { url: '', hecho: 0, cuenta: '' });
 let esperandoTelegram = false;
 
 function pintarTelegram(conectado) {
   $('#telegram-estado').textContent = conectado
-    ? 'Telegram conectado: te aviso cada noche y los domingos'
+    ? 'Telegram conectado: recibirás avisos cada noche y los domingos'
     : 'Recibe recordatorios y tu resumen semanal en Telegram';
   $('#telegram-conectar').hidden = conectado;
   $('#telegram-desconectar').hidden = !conectado;
@@ -2813,21 +2934,27 @@ function recordarTelegram(conectado) {
 // El link lleva un código de un solo uso; al picarle "Iniciar", el bot sabe que ese chat es de esta cuenta.
 async function pedirLink() {
   const { codigo, bot } = await pedirAlBot('codigo');
-  linkTelegram = { url: `https://t.me/${bot}?start=${codigo}`, hecho: Date.now() };
+  linkTelegram = { url: `https://t.me/${bot}?start=${codigo}`, hecho: Date.now(), cuenta: cuenta?.id };
+  escribir(CLAVE_LINK_TELEGRAM, linkTelegram);
   $('#telegram-conectar').href = linkTelegram.url;
   return linkTelegram.url;
 }
 
-const linkVigente = () => linkTelegram.url && Date.now() - linkTelegram.hecho < MINUTOS_LINK * 60000;
+const linkVigente = () =>
+  linkTelegram.url && linkTelegram.cuenta === cuenta?.id && Date.now() - linkTelegram.hecho < MINUTOS_LINK * 60000;
 
 // Pinta al instante con lo recordado y luego confirma con Supabase. Si no estás conectado,
 // deja el link listo de una vez, para que el botón abra Telegram con un solo toque.
 async function revisarTelegram() {
   if (!cuenta) return;
   const recordado = leer(CLAVE_TELEGRAM, null);
-  pintarTelegram(recordado?.cuenta === cuenta.id && recordado.conectado);
+  const pareciaConectado = recordado?.cuenta === cuenta.id && recordado.conectado;
+  pintarTelegram(pareciaConectado);
+  if (linkVigente()) $('#telegram-conectar').href = linkTelegram.url;
   try {
-    const { conectado } = await pedirAlBot('estado');
+    // Las dos preguntas al servidor van al mismo tiempo (antes iban una tras otra).
+    const necesitaLink = !pareciaConectado && !linkVigente();
+    const [{ conectado }] = await Promise.all([pedirAlBot('estado'), necesitaLink ? pedirLink() : null]);
     if (!cuenta) return; // cerró sesión mientras tanto
     recordarTelegram(conectado);
     if (!conectado && !linkVigente()) await pedirLink();
@@ -2849,7 +2976,7 @@ $('#telegram-conectar').addEventListener('click', async (evento) => {
   try {
     const url = await pedirLink();
     if (ventana) ventana.location.href = url;
-    else $('#telegram-estado').textContent = 'Listo: pícale otra vez a "Conectar Telegram"';
+    else $('#telegram-estado').textContent = 'El enlace está listo. Toca de nuevo "Conectar Telegram".';
   } catch (error) {
     ventana?.close();
     esperandoTelegram = false;
@@ -3007,7 +3134,13 @@ async function iniciarCuenta() {
   const { data } = await db.auth.getSession();
   db.auth.onAuthStateChange((evento, sesion) => {
     if (evento === 'PASSWORD_RECOVERY') abrirLogin('nueva');
-    else if (evento === 'SIGNED_IN' || evento === 'SIGNED_OUT') ponerCuenta(sesion?.user ?? null);
+    // TOKEN_REFRESHED: la sesión se renovó sola (por ejemplo, al volver el internet): se retoma la cuenta.
+    else if (evento === 'SIGNED_IN' || evento === 'TOKEN_REFRESHED') ponerCuenta(sesion?.user ?? null);
+    else if (evento === 'SIGNED_OUT') {
+      // La sesión se cerró sola (venció): las secciones eran de esa cuenta; vuelven al entrar otra vez.
+      if (cuenta) reiniciarSecciones();
+      ponerCuenta(null);
+    }
   });
   await ponerCuenta(data.session?.user ?? null);
 }

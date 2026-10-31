@@ -161,7 +161,14 @@ async function atenderTelegram(update: any) {
   }
 
   // Los comandos solo funcionan si este chat ya está conectado a una cuenta.
-  const { data: dueno } = await db.from('telegram').select('user_id').eq('chat_id', chatId).limit(1).maybeSingle();
+  // Si el mismo chat está conectado a varias cuentas, contestan con la última que se conectó.
+  const { data: dueno } = await db
+    .from('telegram')
+    .select('user_id')
+    .eq('chat_id', chatId)
+    .order('conectado', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
   if (!dueno) {
     await enviar(chatId, `Este es el bot de Kashiki. Para recibir tus avisos, abre Kashiki → Configuración → <b>Telegram</b>.\n\n${URL_APP}`);
     return;
@@ -353,10 +360,16 @@ function porSeccion({ movimientos, metas, pendientes, fijos, secciones }: Datos)
 }
 
 async function leerDatos(usuario: string): Promise<Datos> {
+  // Supabase entrega máximo 1000 filas por vez: se piden por páginas hasta que no haya más.
   const leer = async (tabla: string) => {
-    const { data, error } = await db.from(tabla).select('*').eq('user_id', usuario);
-    if (error) throw error;
-    return (data ?? []).map((fila: any) => ({
+    const filas: any[] = [];
+    for (let desde = 0; ; desde += 1000) {
+      const { data, error } = await db.from(tabla).select('*').eq('user_id', usuario).order('id').range(desde, desde + 999);
+      if (error) throw error;
+      filas.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+    return filas.map((fila: any) => ({
       ...fila,
       monto: Number(fila.monto),
       objetivo: Number(fila.objetivo),

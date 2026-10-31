@@ -15,6 +15,9 @@ create table if not exists public.fijos (
   primary key (user_id, id)
 );
 
+-- El día del mes en que se cobra (para que un cobro del 31 regrese al 31 después de un mes corto).
+alter table public.fijos add column if not exists dia smallint check (dia between 1 and 31);
+
 -- Seguridad: cada quien solo ve y toca los suyos (igual que las demás tablas).
 alter table public.fijos enable row level security;
 drop policy if exists "Cada quien lo suyo" on public.fijos;
