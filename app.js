@@ -3352,6 +3352,140 @@ $('#exportar').addEventListener('click', () => {
   URL.revokeObjectURL(enlace.href);
 });
 
+// ---------- Exportar a Excel ----------
+// La librería que arma el .xlsx (SheetJS) solo se descarga la primera vez que se usa.
+let cargandoExcel = null;
+function cargarExcel() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  cargandoExcel ??= new Promise((listo, fallo) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    script.onload = () => listo(window.XLSX);
+    script.onerror = () => {
+      cargandoExcel = null;
+      script.remove();
+      fallo(new Error('sin internet'));
+    };
+    document.head.append(script);
+  });
+  return cargandoExcel;
+}
+
+const FORMATO_DINERO = '"$"#,##0.00';
+const NOMBRE_TIPO = { ingreso: 'Ingreso', gasto: 'Gasto', ahorro: 'Ahorro' };
+const NOMBRE_CADA = { semana: 'Cada semana', mes: 'Cada mes', anio: 'Cada año' };
+
+// Excel guarda las fechas como "días desde el 30/12/1899". Se calcula en UTC para que no se recorra un día.
+const diaExcel = (fecha) => {
+  const [a, m, d] = fecha.split('-').map(Number);
+  return (Date.UTC(a, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000;
+};
+
+// Arma una hoja con encabezados, ancho de columnas y formato de dinero y fecha.
+function hojaExcel(XLSX, encabezados, filas, { dinero: deDinero = [], fechas = [], anchos = [] } = {}) {
+  const hoja = XLSX.utils.aoa_to_sheet([encabezados, ...filas]);
+  hoja['!cols'] = encabezados.map((e, i) => ({ wch: anchos[i] || Math.max(12, e.length + 2) }));
+  for (let f = 1; f <= filas.length; f++) {
+    for (const c of deDinero) {
+      const celda = hoja[XLSX.utils.encode_cell({ r: f, c })];
+      if (celda) celda.z = FORMATO_DINERO;
+    }
+    for (const c of fechas) {
+      const celda = hoja[XLSX.utils.encode_cell({ r: f, c })];
+      if (celda) celda.z = 'dd/mm/yyyy';
+    }
+  }
+  if (filas.length > 0) hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: filas.length, c: encabezados.length - 1 } }) };
+  return hoja;
+}
+
+function armarExcel(XLSX) {
+  const nombreSeccion = (id) => secciones.find((s) => s.id === id)?.nombre || 'Otra sección';
+  const nombreMeta = (id) => datos.metas.find((m) => m.id === id)?.nombre || '';
+  const conSecciones = secciones.length > 1;
+  const libro = XLSX.utils.book_new();
+
+  // 1. Resumen por mes (de todas las secciones), del más reciente al más viejo.
+  const porMes = {};
+  for (const m of datos.movimientos) {
+    if (m.categoria === SALDO_INICIAL) continue;
+    const mes = (porMes[m.fecha.slice(0, 7)] ??= { ingreso: 0, gasto: 0, ahorro: 0 });
+    mes[m.tipo] += m.monto;
+  }
+  const meses = Object.keys(porMes).sort().reverse();
+  const filasResumen = meses.map((clave) => {
+    const { ingreso, gasto, ahorro } = porMes[clave];
+    const nombre = aFecha(clave + '-01').toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    return [nombre.charAt(0).toUpperCase() + nombre.slice(1), ingreso, gasto, ahorro, ingreso - gasto];
+  });
+  XLSX.utils.book_append_sheet(
+    libro,
+    hojaExcel(XLSX, ['Mes', 'Ingresos', 'Gastos', 'Ahorrado', 'Balance'], filasResumen, { dinero: [1, 2, 3, 4], anchos: [20, 14, 14, 14, 14] }),
+    'Resumen por mes'
+  );
+
+  // 2. Todos los movimientos, del más nuevo al más viejo.
+  const movimientos = [...datos.movimientos].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.creado - a.creado);
+  const encabezadosMov = ['Fecha', 'Tipo', 'Categoría', 'Nota', 'Monto', ...(conSecciones ? ['Sección'] : [])];
+  const filasMov = movimientos.map((m) => [
+    diaExcel(m.fecha),
+    NOMBRE_TIPO[m.tipo],
+    m.tipo === 'ahorro' ? nombreMeta(m.meta) || m.categoria : m.categoria,
+    m.nota || '',
+    m.tipo === 'gasto' ? -m.monto : m.monto,
+    ...(conSecciones ? [nombreSeccion(m.seccion)] : []),
+  ]);
+  XLSX.utils.book_append_sheet(
+    libro,
+    hojaExcel(XLSX, encabezadosMov, filasMov, { dinero: [4], fechas: [0], anchos: [12, 10, 18, 30, 14, 16] }),
+    'Movimientos'
+  );
+
+  // 3. Metas de ahorro.
+  const filasMetas = datos.metas.map((meta) => {
+    const ahorrado = ahorradoEn(meta);
+    return [meta.nombre, meta.objetivo, ahorrado, Math.max(0, meta.objetivo - ahorrado), ...(conSecciones ? [nombreSeccion(meta.seccion)] : [])];
+  });
+  XLSX.utils.book_append_sheet(
+    libro,
+    hojaExcel(XLSX, ['Meta', 'Objetivo', 'Ahorrado', 'Falta', ...(conSecciones ? ['Sección'] : [])], filasMetas, { dinero: [1, 2, 3], anchos: [22, 14, 14, 14, 16] }),
+    'Metas'
+  );
+
+  // 4. Pagos pendientes y pagos fijos.
+  const filasPendientes = [...datos.pendientes]
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    .map((p) => [p.tipo === 'debo' ? 'Yo debo' : 'Me deben', p.persona, p.monto, diaExcel(p.fecha), p.nota || '', ...(conSecciones ? [nombreSeccion(p.seccion)] : [])]);
+  XLSX.utils.book_append_sheet(
+    libro,
+    hojaExcel(XLSX, ['Tipo', 'Persona', 'Monto', 'Fecha', 'Nota', ...(conSecciones ? ['Sección'] : [])], filasPendientes, { dinero: [2], fechas: [3], anchos: [12, 20, 14, 12, 26, 16] }),
+    'Pagos pendientes'
+  );
+  const filasFijos = [...datos.fijos]
+    .sort((a, b) => a.proximo.localeCompare(b.proximo))
+    .map((f) => [f.nombre, f.monto, NOMBRE_CADA[f.cada], diaExcel(f.proximo), ...(conSecciones ? [nombreSeccion(f.seccion)] : [])]);
+  XLSX.utils.book_append_sheet(
+    libro,
+    hojaExcel(XLSX, ['Pago', 'Monto', 'Cada cuándo', 'Próximo cobro', ...(conSecciones ? ['Sección'] : [])], filasFijos, { dinero: [1], fechas: [3], anchos: [22, 14, 14, 14, 16] }),
+    'Pagos fijos'
+  );
+  return libro;
+}
+
+$('#exportar-excel').addEventListener('click', async () => {
+  const boton = $('#exportar-excel');
+  boton.disabled = true;
+  try {
+    const XLSX = await conLimite(cargarExcel(), 15000, 'tardó');
+    XLSX.writeFile(armarExcel(XLSX), `kashiki-${hoy()}.xlsx`, { compression: true });
+    avisar('Listo: se descargó tu archivo de Excel.');
+  } catch {
+    avisar('No se pudo crear el archivo. Revisa tu conexión a internet e intenta de nuevo.');
+  } finally {
+    boton.disabled = false;
+  }
+});
+
 $('#importar').addEventListener('change', async (evento) => {
   const archivo = evento.target.files[0];
   evento.target.value = '';

@@ -1,49 +1,63 @@
-<p align="center"><img src="marca/kashiki.png" width="220" alt="Kashiki, un changuito meditando sobre una moneda"></p>
+<p align="center"><img src="marca/kashiki.png" width="200" alt="Kashiki, un changuito meditando sobre una moneda"></p>
 
-# Kashiki
+<h1 align="center">Kashiki</h1>
 
-**Respira. Ahorra. Crece.**
+<p align="center"><b>Respira. Ahorra. Crece.</b><br>
+App para llevar el control de tu dinero desde el teléfono o la computadora.</p>
 
-App para llevar el control de **ingresos y gastos** desde el teléfono.
+<p align="center"><a href="https://shanlingsong.github.io/control-dinero/"><b>Abrir Kashiki →</b></a></p>
 
-- Registra cada movimiento con monto, categoría, nota y fecha.
-- Muestra ingresos, gastos y balance de cada mes, y cuánto dinero tienes en total.
-- Muestra en qué categorías se va el dinero.
+<p align="center">
+  <img src="marca/capturas/dinero.jpg" width="250" alt="Pantalla Dinero">
+  <img src="marca/capturas/metas.jpg" width="250" alt="Pantalla Metas">
+  <img src="marca/capturas/pagos.jpg" width="250" alt="Pantalla Pagos">
+</p>
+
+## Qué hace
+
+- **Ingresos, gastos y ahorros** con categoría, nota y fecha; gráfica de la semana y del mes, y en qué se va tu dinero.
+- **Anotar escribiendo o dictando**: *"gasté 80 en tacos ayer"* o *"me pagaron 2 mil"*. Kashiki saca el monto, el tipo, la categoría y la fecha (con reglas propias, sin IA de pago) y aprende de tus notas anteriores.
 - **Metas de ahorro**: apartas dinero para algo y ves cuánto te falta.
 - **Racha**: cuenta los días seguidos que registras algo, para crear el hábito.
-- **Pagos pendientes**: lo que debes y lo que te deben, con fecha; al pagarlo se anota solo como gasto o ingreso.
-- **Telegram**: recordatorio cada noche que no registres nada o tengas pagos por vencer, y resumen de tu semana cada domingo.
+- **Pagos pendientes**: lo que debes y lo que te deben; al pagarlo se anota solo.
+- **Pagos fijos**: Netflix, renta, plan del celular… te avisa antes de cada cobro.
+- **Secciones**: separa tu dinero personal del de tu negocio en la misma cuenta.
+- **Comparación con el mes pasado** y **búsqueda** de cualquier movimiento.
+- **Avisos** por notificación o por Telegram: recordatorio diario y resumen semanal.
+- **Exportar a Excel** y respaldo para descargar o restaurar.
+- Se instala como app (PWA), **funciona sin internet** y tiene versión para computadora.
 
-La app tiene 4 secciones en la barra de abajo: **Dinero**, **Metas**, **Racha** y **Pagos**.
-- Se instala en el teléfono como una app y funciona sin internet.
+## Cómo está hecha
 
-## Dónde se guardan los datos
-
-- **En el teléfono** (localStorage), para que la app abra rápido y funcione sin internet.
-- **En la nube**, en una hoja de Google Sheets tuya, si la conectas con el botón ⚙. Los cambios hechos sin internet se suben solos cuando vuelve la conexión.
-- **Respaldo manual**: un archivo que puedes descargar cuando quieras.
-
-Para conectar la nube y la IA, sigue [`nube/INSTRUCCIONES.md`](nube/INSTRUCCIONES.md).
-
-## Escribir con IA
-
-En la caja de arriba puedes escribir como hablas: *"me pagaron 3000 de la quincena"*, *"ayer gasté 80 en el camión"*. Claude lo convierte en un movimiento y te lo muestra para que lo revises antes de guardar.
+| Parte | Con qué |
+| --- | --- |
+| App | HTML, CSS y JavaScript sin frameworks, publicada en GitHub Pages |
+| Sin internet | Service worker (`sw.js`) y copia de los datos en el teléfono |
+| Cuentas y nube | [Supabase](https://supabase.com): inicio de sesión y base de datos Postgres con reglas (RLS) para que cada quien vea solo lo suyo |
+| Bot y avisos | Edge Function en Deno (`supabase/functions/kashiki-bot`): bot de Telegram, notificaciones Web Push y tareas programadas con `pg_cron` |
 
 ## Archivos
 
 | Archivo | Qué hace |
 | --- | --- |
-| `index.html` | La estructura de la pantalla |
+| `index.html` | La estructura de las pantallas |
 | `styles.css` | Los colores y el diseño |
-| `app.js` | La lógica: guardar, sumar, dibujar la lista |
-| `manifest.json` | Nombre e icono para instalarla en el teléfono |
+| `app.js` | La lógica: guardar, sincronizar, sumar, dibujar |
 | `sw.js` | Permite abrirla sin internet |
-| `nube/Code.gs` | El servidor en Google: guarda en la hoja y habla con la API de Claude |
+| `manifest.json` | Nombre e icono para instalarla |
+| `privacidad.html` | Aviso de privacidad |
+| `supabase/*.sql` | Las tablas y sus reglas de seguridad |
+| `supabase/functions/kashiki-bot/` | El servidor: bot de Telegram, notificaciones y borrar cuenta |
 
-## Plan del proyecto
+## Historia del proyecto
 
 1. ✅ App web básica para el teléfono
-2. ✅ Guardar en la nube (Google Sheets) y registrar movimientos escribiendo en lenguaje normal con la API de Claude
-3. ✅ Metas, racha y resumen semanal por Telegram (con Apps Script)
-4. ⬜ Automatizaciones más grandes con n8n
-5. ⬜ Skill propia para analizar mis finanzas con Claude
+2. ✅ Nube con Google Sheets y Apps Script
+3. ✅ Metas, racha y avisos por Telegram
+4. ✅ Cuentas de usuario con Supabase (varios usuarios, cada quien con sus datos)
+5. ✅ Bot propio, notificaciones push, secciones, pagos fijos y anotar dictando
+6. ✅ Diseño "Plata", versión para computadora y exportar a Excel
+
+---
+
+Hecho por [shanlingsong](https://github.com/shanlingsong) como proyecto para aprender. © 2026, todos los derechos reservados.

@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <!-- El ?v= cambia en cada versión para que el navegador no use un diseño viejo guardado -->
-  <link rel="stylesheet" href="styles.css?v=45">
+  <link rel="stylesheet" href="styles.css?v=46">
 </head>
 <body>
   <div id="recargar" class="recargar" aria-hidden="true"><i class="ti ti-refresh"></i></div>
@@ -532,7 +532,11 @@
 
       <!-- ===== Respaldo ===== -->
       <div class="pantalla" data-pantalla="respaldo" hidden>
-        <p class="suave pequeno">Un archivo con todo: movimientos, metas, racha y pagos. Al restaurarlo se agregan los que falten.</p>
+        <p class="suave pequeno">Tus movimientos, metas y pagos en una hoja de cálculo que abre Excel o Google Sheets, con un resumen de cada mes.</p>
+        <div class="acciones izquierda">
+          <button type="button" id="exportar-excel" class="boton-secundario"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Descargar en Excel</button>
+        </div>
+        <p class="suave pequeno">Respaldo de Kashiki, un archivo con todo: movimientos, metas, racha y pagos. Al restaurarlo se agregan los que falten.</p>
         <div class="acciones izquierda">
           <button type="button" id="exportar" class="boton-secundario"><i class="ti ti-download" aria-hidden="true"></i> Descargar</button>
           <label class="boton-secundario"><i class="ti ti-upload" aria-hidden="true"></i> Restaurar
@@ -629,6 +633,6 @@
   <div id="aviso" class="aviso" role="status" hidden><span id="aviso-texto"></span><button type="button" id="aviso-accion" class="boton-texto" hidden></button></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-  <script src="app.js?v=45"></script>
+  <script src="app.js?v=46"></script>
 </body>
 </html>
