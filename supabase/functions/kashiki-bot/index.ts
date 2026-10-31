@@ -98,8 +98,9 @@ Deno.serve(async (req) => {
     }
     return json({ error: 'No entendí qué quieres' }, 400);
   } catch (error) {
+    // El detalle se queda en los registros de Supabase; a quien llamó solo se le dice que algo falló.
     console.error(error);
-    return json({ error: String(error) }, 500);
+    return json({ error: 'Algo falló en el servidor. Intenta de nuevo.' }, 500);
   }
 });
 
@@ -229,8 +230,29 @@ async function telegram(metodo: string, datos: unknown) {
   return await respuesta.json();
 }
 
-function enviar(chatId: number, texto: string) {
-  return telegram('sendMessage', { chat_id: chatId, text: texto, parse_mode: 'HTML', disable_web_page_preview: true });
+// Telegram no acepta mensajes de más de 4096 letras: los largos se mandan en partes, cortando entre renglones
+// (así una etiqueta como <b>…</b> nunca queda partida).
+const MAXIMO_MENSAJE = 4000;
+async function enviar(chatId: number, texto: string) {
+  const partes: string[] = [];
+  let actual = '';
+  for (const renglon of texto.split('\n')) {
+    const corto = renglon.length > MAXIMO_MENSAJE ? renglon.slice(0, MAXIMO_MENSAJE - 1) + '…' : renglon;
+    if (actual && actual.length + 1 + corto.length > MAXIMO_MENSAJE) {
+      partes.push(actual);
+      actual = corto;
+    } else {
+      actual = actual ? actual + '\n' + corto : corto;
+    }
+  }
+  if (actual) partes.push(actual);
+
+  let respuesta: any = { ok: true };
+  for (const parte of partes) {
+    respuesta = await telegram('sendMessage', { chat_id: chatId, text: parte, parse_mode: 'HTML', disable_web_page_preview: true });
+    if (!respuesta.ok) break;
+  }
+  return respuesta;
 }
 
 // Corre el aviso de la noche o el resumen del domingo para cada usuario que tenga Telegram conectado

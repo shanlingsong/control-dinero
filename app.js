@@ -295,6 +295,11 @@ function encolar(cambio) {
 
 let sincronizando = false;
 let otraVez = false; // llegó un cambio mientras se sincronizaba: hay que dar otra vuelta
+
+// Espera (máximo 15 s) a que termine la sincronización que ya iba, si había una.
+async function esperarSincronizacion() {
+  for (let i = 0; sincronizando && i < 60; i++) await new Promise((listo) => setTimeout(listo, 250));
+}
 // Mientras no contestes "¿Subimos lo de este teléfono?", no se descarga nada de la nube
 // (si se descargara, lo del teléfono se reemplazaría y se perdería).
 let esperandoDecision = false;
@@ -527,7 +532,7 @@ function dibujarEncabezado() {
     linea.textContent = mayuscula(fecha);
   } else {
     const s = seccionVista();
-    linea.innerHTML = `<i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i> `;
+    linea.innerHTML = `<i class="ti ${iconoSeguro(s.icono)}" aria-hidden="true"></i> `;
     linea.append(`${s.nombre} · ${fecha}`);
   }
   for (const el of [$('#avatar'), $('#avatar-grande'), $('#avatar-ajustes')]) {
@@ -1737,7 +1742,7 @@ function pintarCategorias() {
         chip.setAttribute('role', 'radio');
         chip.setAttribute('aria-checked', activo);
       }
-      chip.innerHTML = `<i class="ti ${o.icono}" aria-hidden="true"></i>`;
+      chip.innerHTML = `<i class="ti ${iconoSeguro(o.icono)}" aria-hidden="true"></i>`;
       chip.append(o.texto);
       chip.addEventListener('click', () => {
         if (o.desplegar) {
@@ -1988,6 +1993,11 @@ let seccionEditando = null; // null = creando una nueva
 
 const seccionVista = () => secciones.find((s) => s.id === seccionActual) || SECCION_PERSONAL;
 
+// Un ícono solo puede ser un nombre de ícono ("ti-algo"); cualquier otra cosa podría meter código en la pantalla.
+function iconoSeguro(icono) {
+  return /^ti-[a-z0-9-]+$/.test(icono) ? icono : 'ti-folder';
+}
+
 // Las secciones borradas se recuerdan un tiempo (id → cuándo), para que otro dispositivo no las "reviva".
 const CLAVE_SECCIONES_BORRADAS = 'mi-dinero:secciones-borradas';
 const CLAVE_SECCIONES_SIN_SUBIR = 'mi-dinero:secciones-sin-subir';
@@ -2079,7 +2089,7 @@ function dibujarSecciones() {
     const fila = document.createElement('div');
     fila.className = 'opcion-seccion' + (s.id === seccionActual ? ' actual' : '');
     fila.innerHTML = `<button type="button" class="opcion-elegir" role="radio" aria-checked="${s.id === seccionActual}">
-        <span class="opcion-icono"><i class="ti ${s.icono || 'ti-folder'}" aria-hidden="true"></i></span><span class="opcion-nombre"></span>
+        <span class="opcion-icono"><i class="ti ${iconoSeguro(s.icono)}" aria-hidden="true"></i></span><span class="opcion-nombre"></span>
         <i class="ti ti-circle-check palomita" aria-hidden="true"></i>
       </button>
       <button type="button" class="opcion-editar"><i class="ti ti-pencil" aria-hidden="true"></i></button>`;
@@ -2801,7 +2811,9 @@ $('#subir-no').addEventListener('click', () => {
 $('#cerrar-sesion').addEventListener('click', async () => {
   // Si hay cambios que aún no llegan a la nube, primero se intentan subir; si no se puede, no se cierra.
   if (pendientes.length > 0) {
+    await esperarSincronizacion();
     await sincronizar();
+    await esperarSincronizacion();
     if (pendientes.length > 0) {
       avisar(`Tienes ${pendientes.length} ${pendientes.length === 1 ? 'cambio' : 'cambios'} sin subir. Conéctate a internet antes de cerrar sesión para no perderlos.`);
       return;
@@ -2932,7 +2944,14 @@ function recordarTelegram(conectado) {
 }
 
 // El link lleva un código de un solo uso; al picarle "Iniciar", el bot sabe que ese chat es de esta cuenta.
-async function pedirLink() {
+// Si ya se está pidiendo un link, se espera ese mismo (dos pedidos a la vez dejarían un código caducado).
+let pidiendoLink = null;
+function pedirLink() {
+  pidiendoLink ??= pedirLinkNuevo().finally(() => (pidiendoLink = null));
+  return pidiendoLink;
+}
+
+async function pedirLinkNuevo() {
   const { codigo, bot } = await pedirAlBot('codigo');
   linkTelegram = { url: `https://t.me/${bot}?start=${codigo}`, hecho: Date.now(), cuenta: cuenta?.id };
   escribir(CLAVE_LINK_TELEGRAM, linkTelegram);
@@ -3138,7 +3157,8 @@ async function iniciarCuenta() {
     else if (evento === 'SIGNED_IN' || evento === 'TOKEN_REFRESHED') ponerCuenta(sesion?.user ?? null);
     else if (evento === 'SIGNED_OUT') {
       // La sesión se cerró sola (venció): las secciones eran de esa cuenta; vuelven al entrar otra vez.
-      if (cuenta) reiniciarSecciones();
+      // Si había cambios de secciones sin subir, se guardan (igual que los movimientos) hasta volver a entrar.
+      if (cuenta && !leer(CLAVE_SECCIONES_SIN_SUBIR, false)) reiniciarSecciones();
       ponerCuenta(null);
     }
   });
@@ -3360,6 +3380,8 @@ function cargarExcel() {
   cargandoExcel ??= new Promise((listo, fallo) => {
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    script.integrity = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
+    script.crossOrigin = 'anonymous';
     script.onload = () => listo(window.XLSX);
     script.onerror = () => {
       cargandoExcel = null;
